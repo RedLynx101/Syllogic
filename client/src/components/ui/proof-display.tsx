@@ -37,9 +37,9 @@ export function ProofDisplay({ steps, isValid, explanation }: ProofDisplayProps)
     ? steps 
     : steps.filter(step => 
         step.rule === "Premise" || 
-        step.rule === "Barbara" || 
-        step.rule === "Darii" || 
-        step.rule === "Conclusion"
+        (step.rule !== "Obversion" && 
+         step.rule !== "Contraposition" && 
+         step.rule !== "Conversion")
     );
   
   // Create a mapping of old step numbers to new sequential numbers based on visible steps
