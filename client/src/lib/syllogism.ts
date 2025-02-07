@@ -218,9 +218,7 @@ export const evaluateSyllogism = (argument: Argument): Proof => {
   };
 
   const conclusionFound = (): boolean => {
-    const found = steps.find((s) => {
-      return premisesEqual(s.premise, normalizedConclusion);
-    });
+    const found = steps.find((s) => premisesEqual(s.premise, normalizedConclusion));
     if (found) {
       markStepsAsUsed(found);
       return true;
@@ -261,7 +259,6 @@ export const evaluateSyllogism = (argument: Argument): Proof => {
   }
 
   const isValid = conclusionFound();
-
   const finalSteps = isValid
     ? steps.filter((s) => usedSteps.has(s.number))
     : steps;
@@ -272,7 +269,7 @@ export const evaluateSyllogism = (argument: Argument): Proof => {
     explanation: isValid
       ? "The conclusion follows from the premises using valid syllogistic rules."
       : stepNumber > MAX_STEPS
-        ? "Evaluation stopped: too many steps generated. The conclusion might not follow from the premises."
-        : "The conclusion does not follow from the premises using the available rules.",
+      ? "Evaluation stopped: too many steps generated. The conclusion might not follow from the premises."
+      : "The conclusion does not follow from the premises using the available rules.",
   };
 };
