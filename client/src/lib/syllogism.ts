@@ -70,8 +70,8 @@ const checkBarbara = (p1: Premise, p2: Premise): Premise | null => {
   if (isPremiseForm(n1, "A") && isPremiseForm(n2, "A") && n1.predicate === n2.subject) {
     return {
       form: "A",
-      subject: n2.subject,
-      predicate: n1.predicate,
+      subject: n1.subject,     // Use subject from the first premise
+      predicate: n2.predicate, // Use predicate from the second premise
     };
   }
   return null;
@@ -84,8 +84,8 @@ const checkDarii = (p1: Premise, p2: Premise): Premise | null => {
   if (isPremiseForm(n1, "A") && isPremiseForm(n2, "I") && n1.predicate === n2.subject) {
     return {
       form: "I",
-      subject: n2.subject,
-      predicate: n1.predicate,
+      subject: n1.subject,     // Use subject from the A-premise
+      predicate: n2.predicate, // Use predicate from the I-premise
     };
   }
   return null;
