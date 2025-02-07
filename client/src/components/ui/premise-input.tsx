@@ -2,6 +2,7 @@ import React from "react";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { PremiseForm, type Premise } from "@shared/schema";
 import { X } from "lucide-react";
 
@@ -13,6 +14,20 @@ interface PremiseInputProps {
 }
 
 export function PremiseInput({ value, onChange, onRemove, isConclusion }: PremiseInputProps) {
+  const handleSubjectNegation = (checked: boolean) => {
+    onChange({
+      ...value,
+      subject: checked ? `non-${value.subject.replace(/^non-/, '')}` : value.subject.replace(/^non-/, ''),
+    });
+  };
+
+  const handlePredicateNegation = (checked: boolean) => {
+    onChange({
+      ...value,
+      predicate: checked ? `non-${value.predicate.replace(/^non-/, '')}` : value.predicate.replace(/^non-/, ''),
+    });
+  };
+
   return (
     <div className="flex gap-2 items-center">
       <Select
@@ -30,21 +45,35 @@ export function PremiseInput({ value, onChange, onRemove, isConclusion }: Premis
         </SelectContent>
       </Select>
 
-      <Input
-        placeholder="Subject"
-        value={value.subject}
-        onChange={(e) => onChange({ ...value, subject: e.target.value })}
-        className="w-[200px]"
-      />
+      <div className="flex items-center gap-2">
+        <Checkbox
+          id={`subject-not-${isConclusion ? 'conclusion' : value.subject}`}
+          checked={value.subject.startsWith('non-')}
+          onCheckedChange={handleSubjectNegation}
+        />
+        <Input
+          placeholder="Subject"
+          value={value.subject.replace(/^non-/, '')}
+          onChange={(e) => onChange({ ...value, subject: value.subject.startsWith('non-') ? `non-${e.target.value}` : e.target.value })}
+          className="w-[200px]"
+        />
+      </div>
 
       <span className="text-muted-foreground">are</span>
 
-      <Input
-        placeholder="Predicate"
-        value={value.predicate}
-        onChange={(e) => onChange({ ...value, predicate: e.target.value })}
-        className="w-[200px]"
-      />
+      <div className="flex items-center gap-2">
+        <Checkbox
+          id={`predicate-not-${isConclusion ? 'conclusion' : value.predicate}`}
+          checked={value.predicate.startsWith('non-')}
+          onCheckedChange={handlePredicateNegation}
+        />
+        <Input
+          placeholder="Predicate"
+          value={value.predicate.replace(/^non-/, '')}
+          onChange={(e) => onChange({ ...value, predicate: value.predicate.startsWith('non-') ? `non-${e.target.value}` : e.target.value })}
+          className="w-[200px]"
+        />
+      </div>
 
       {!isConclusion && onRemove && (
         <Button variant="ghost" size="icon" onClick={onRemove}>

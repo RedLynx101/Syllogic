@@ -49,80 +49,86 @@ export default function Home() {
   };
 
   return (
-    <div className="container max-w-4xl mx-auto py-8 space-y-8"> {/* Added mx-auto for centering */}
-      <div className="text-center space-y-2">
-        <h1 className="text-4xl font-bold tracking-tight">Syllogic</h1>
-        <p className="text-muted-foreground">
-          Evaluate syllogistic arguments using the eight fundamental logical rules
-        </p>
-      </div>
+    <div className="container max-w-4xl mx-auto py-8 min-h-screen flex flex-col">
+      <div className="flex-grow space-y-8">
+        <div className="text-center space-y-2">
+          <h1 className="text-4xl font-bold tracking-tight">Syllogic</h1>
+          <p className="text-muted-foreground">
+            Evaluate syllogistic arguments using the eight fundamental logical rules
+          </p>
+        </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Premises</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {premises.map((premise, index) => (
-            <PremiseInput
-              key={index}
-              value={premise}
-              onChange={(p) => updatePremise(index, p)}
-              onRemove={() => removePremise(index)}
-            />
-          ))}
-
-          {premises.length < 50 && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={addPremise}
-              className="mt-2"
-            >
-              <Plus className="h-4 w-4 mr-2" />
-              Add Premise
-            </Button>
-          )}
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Conclusion</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <PremiseInput
-            value={conclusion}
-            onChange={setConclusion}
-            isConclusion
-          />
-        </CardContent>
-      </Card>
-
-      <Button 
-        className="w-full"
-        onClick={() => evaluateMutation.mutate()}
-        disabled={evaluateMutation.isPending}
-      >
-        {evaluateMutation.isPending ? (
-          <>
-            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-            Evaluating...
-          </>
-        ) : (
-          "Evaluate Argument"
-        )}
-      </Button>
-
-      {proof && (
         <Card>
           <CardHeader>
-            <CardTitle>Proof</CardTitle>
+            <CardTitle>Premises</CardTitle>
           </CardHeader>
-          <CardContent>
-            <ProofDisplay {...proof} />
+          <CardContent className="space-y-4">
+            {premises.map((premise, index) => (
+              <PremiseInput
+                key={index}
+                value={premise}
+                onChange={(p) => updatePremise(index, p)}
+                onRemove={() => removePremise(index)}
+              />
+            ))}
+
+            {premises.length < 50 && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={addPremise}
+                className="mt-2"
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                Add Premise
+              </Button>
+            )}
           </CardContent>
         </Card>
-      )}
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Conclusion</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <PremiseInput
+              value={conclusion}
+              onChange={setConclusion}
+              isConclusion
+            />
+          </CardContent>
+        </Card>
+
+        <Button
+          className="w-full"
+          onClick={() => evaluateMutation.mutate()}
+          disabled={evaluateMutation.isPending}
+        >
+          {evaluateMutation.isPending ? (
+            <>
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              Evaluating...
+            </>
+          ) : (
+            "Evaluate Argument"
+          )}
+        </Button>
+
+        {proof && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Proof</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ProofDisplay {...proof} />
+            </CardContent>
+          </Card>
+        )}
+      </div>
+
+      <footer className="text-center text-sm text-muted-foreground mt-8 pb-4">
+        &copy; {new Date().getFullYear()} Syllogic. Created by Noah Hicks
+      </footer>
     </div>
   );
 }
