@@ -1,3 +1,6 @@
+const MAX_STEPS = 500;
+const MAX_TERM_LENGTH = 100;
+
 import {
   Argument,
   Premise,
