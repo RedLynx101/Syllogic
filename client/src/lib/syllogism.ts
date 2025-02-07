@@ -47,6 +47,18 @@ const normalizePremise = (premise: Premise): Premise => ({
   predicate: normalizeTerm(premise.predicate),
 });
 
+// NEW: For E statements, generate alternate forms
+const alternateEForms = (premise: Premise): Premise[] => {
+  const normalized = normalizePremise(premise);
+  if (normalized.form === "E") {
+    return [
+      normalized,
+      normalizePremise({ ...normalized, subject: `non-${normalized.subject}` }),
+    ];
+  }
+  return [normalized];
+};
+
 // Apply obversion rules
 const applyObversion = (premise: Premise): Premise => {
   const normalized = normalizePremise(premise);
@@ -123,11 +135,11 @@ const checkBarbara = (p1: Premise, p2: Premise): Premise | null => {
     isPremiseForm(n2, "A") &&
     n1.predicate === n2.subject
   ) {
-    return {
+    return normalizePremise({
       form: "A",
-      subject: n1.subject, // Use subject from the first premise
-      predicate: n2.predicate, // Use predicate from the second premise
-    };
+      subject: n1.subject,
+      predicate: n2.predicate,
+    });
   }
   return null;
 };
@@ -143,11 +155,10 @@ const checkDarii = (p1: Premise, p2: Premise): Premise | null => {
     isPremiseForm(n2, "I") &&
     n1.subject === n2.subject
   ) {
-    // Conclusion: Some [n2.predicate] are [n1.predicate]
     return normalizePremise({
       form: "I",
-      subject: n2.predicate, // Minor term from the I-premise
-      predicate: n1.predicate, // Major term from the A-premise
+      subject: n2.predicate,
+      predicate: n1.predicate,
     });
   }
 
@@ -194,16 +205,19 @@ export const evaluateSyllogism = (argument: Argument): Proof => {
     return false;
   };
 
-  // Add initial premises as steps
+  // When adding initial premises, if an E-statement, add alternate forms
   argument.premises.forEach((premise) => {
-    const normalized = normalizePremise(premise);
-    if (!isPremiseSeen(normalized)) {
-      steps.push({
-        number: stepNumber++,
-        premise: normalized,
-        rule: "Premise",
-      });
-    }
+    const alternatives =
+      premise.form === "E" ? alternateEForms(premise) : [normalizePremise(premise)];
+    alternatives.forEach((altPremise) => {
+      if (!isPremiseSeen(altPremise)) {
+        steps.push({
+          number: stepNumber++,
+          premise: altPremise,
+          rule: "Premise",
+        });
+      }
+    });
   });
 
   if (!argument.conclusion) {
