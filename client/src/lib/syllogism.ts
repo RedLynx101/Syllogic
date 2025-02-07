@@ -100,12 +100,15 @@ const premisesEqual = (p1: Premise, p2: Premise): boolean => {
   return directEqual || iConversionEqual;
 };
 
-// Updated check for Barbara that uses equivalents
+// Updated check for Barbara that uses equivalents and is order-agnostic
 const checkBarbaraWithEquivalents = (p1: Premise, p2: Premise): Premise | null => {
   const equiv1 = getEquivalents(p1);
   const equiv2 = getEquivalents(p2);
+
+  // Try both orderings of the premises with their equivalents
   for (const e1 of equiv1) {
     for (const e2 of equiv2) {
+      // Try first ordering: e1 -> e2
       if (e1.form === "A" && e2.form === "A" && e1.predicate === e2.subject) {
         return normalizePremise({
           form: "A",
@@ -113,33 +116,37 @@ const checkBarbaraWithEquivalents = (p1: Premise, p2: Premise): Premise | null =
           predicate: e2.predicate,
         });
       }
+      // Try reverse ordering: e2 -> e1
+      if (e2.form === "A" && e1.form === "A" && e2.predicate === e1.subject) {
+        return normalizePremise({
+          form: "A",
+          subject: e2.subject,
+          predicate: e1.predicate,
+        });
+      }
     }
   }
   return null;
 };
 
-// Updated check for Darii that uses equivalents
+// Updated check for Darii that uses equivalents and is order-agnostic
 const checkDariiWithEquivalents = (p1: Premise, p2: Premise): Premise | null => {
   const equiv1 = getEquivalents(p1);
   const equiv2 = getEquivalents(p2);
+
+  // Try both orderings of the premises with their equivalents
   for (const e1 of equiv1) {
     for (const e2 of equiv2) {
-      if (
-        e1.form === "A" &&
-        e2.form === "I" &&
-        e1.subject === e2.subject
-      ) {
+      // Try first ordering: A premise -> I premise
+      if (e1.form === "A" && e2.form === "I" && e1.subject === e2.subject) {
         return normalizePremise({
           form: "I",
           subject: e2.predicate,
           predicate: e1.predicate,
         });
       }
-      if (
-        e2.form === "A" &&
-        e1.form === "I" &&
-        e2.subject === e1.subject
-      ) {
+      // Try reverse ordering: I premise -> A premise
+      if (e2.form === "A" && e1.form === "I" && e2.subject === e1.subject) {
         return normalizePremise({
           form: "I",
           subject: e1.predicate,
