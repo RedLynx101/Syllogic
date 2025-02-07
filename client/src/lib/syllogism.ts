@@ -18,7 +18,7 @@ const premisesEqual = (p1: Premise, p2: Premise): boolean => {
   const n2 = normalizePremise(p2);
 
   // Direct equality check
-  const directEqual = 
+  const directEqual =
     n1.form === n2.form &&
     n1.subject === n2.subject &&
     n1.predicate === n2.predicate;
@@ -43,24 +43,36 @@ const normalizePremise = (premise: Premise): Premise => ({
 // Apply obversion rules
 const applyObversion = (premise: Premise): Premise => {
   const normalized = normalizePremise(premise);
+  let newPremise;
   switch (normalized.form) {
-    case "A": return { ...normalized, form: "E", predicate: `non-${normalized.predicate}` };
-    case "E": return { ...normalized, form: "A", predicate: `non-${normalized.predicate}` };
-    case "I": return { ...normalized, form: "O", predicate: `non-${normalized.predicate}` };
-    case "O": return { ...normalized, form: "I", predicate: `non-${normalized.predicate}` };
-    default: return normalized;
+    case "A":
+      newPremise = { ...normalized, form: "E", predicate: `non-${normalized.predicate}` };
+      break;
+    case "E":
+      newPremise = { ...normalized, form: "A", predicate: `non-${normalized.predicate}` };
+      break;
+    case "I":
+      newPremise = { ...normalized, form: "O", predicate: `non-${normalized.predicate}` };
+      break;
+    case "O":
+      newPremise = { ...normalized, form: "I", predicate: `non-${normalized.predicate}` };
+      break;
+    default:
+      newPremise = normalized;
   }
+  return normalizePremise(newPremise);
 };
 
 // Apply conversion rules for E and I statements
 const applyConversion = (premise: Premise): Premise | null => {
   if (isPremiseForm(premise, "E") || isPremiseForm(premise, "I")) {
     const normalized = normalizePremise(premise);
-    return {
+    const newPremise = {
       ...normalized,
       subject: normalized.predicate,
       predicate: normalized.subject,
     };
+    return normalizePremise(newPremise);
   }
   return null;
 };
@@ -69,11 +81,12 @@ const applyConversion = (premise: Premise): Premise | null => {
 const applyContraposition = (premise: Premise): Premise | null => {
   if (isPremiseForm(premise, "A") || isPremiseForm(premise, "O")) {
     const normalized = normalizePremise(premise);
-    return {
+    const newPremise = {
       ...normalized,
       subject: `non-${normalized.predicate}`,
       predicate: `non-${normalized.subject}`,
     };
+    return normalizePremise(newPremise);
   }
   return null;
 };
@@ -96,16 +109,26 @@ const checkBarbara = (p1: Premise, p2: Premise): Premise | null => {
 const checkDarii = (p1: Premise, p2: Premise): Premise | null => {
   const n1 = normalizePremise(p1);
   const n2 = normalizePremise(p2);
-  // Check that p1 is A and p2 is I and they share the same middle term (subject)
+
+  // Try: n1 is A and n2 is I and they share the same subject
   if (isPremiseForm(n1, "A") && isPremiseForm(n2, "I") && n1.subject === n2.subject) {
-    // Construct conclusion: Some S are P, where S comes from the I-premise's predicate
-    // and P comes from the A-premise's predicate
-    return {
+    // Conclusion: Some [n2.predicate] are [n1.predicate]
+    return normalizePremise({
       form: "I",
-      subject: n2.predicate,   // S (minor term)
-      predicate: n1.predicate, // P (major term)
-    };
+      subject: n2.predicate,   // Minor term from the I-premise
+      predicate: n1.predicate, // Major term from the A-premise
+    });
   }
+
+  // Try the reverse: n2 is A and n1 is I
+  if (isPremiseForm(n2, "A") && isPremiseForm(n1, "I") && n2.subject === n1.subject) {
+    return normalizePremise({
+      form: "I",
+      subject: n1.predicate,
+      predicate: n2.predicate,
+    });
+  }
+
   return null;
 };
 
@@ -125,8 +148,8 @@ export const evaluateSyllogism = (argument: Argument): Proof => {
     const premiseStr = `${normalized.form}:${normalized.subject}:${normalized.predicate}`;
     if (seenPremises.has(premiseStr)) return true;
 
-    if (normalized.subject.length > MAX_TERM_LENGTH || 
-        normalized.predicate.length > MAX_TERM_LENGTH) {
+    if (normalized.subject.length > MAX_TERM_LENGTH ||
+      normalized.predicate.length > MAX_TERM_LENGTH) {
       return true;
     }
 
@@ -248,9 +271,9 @@ export const evaluateSyllogism = (argument: Argument): Proof => {
   return {
     steps: finalSteps,
     isValid,
-    explanation: isValid 
+    explanation: isValid
       ? "The conclusion follows from the premises using valid syllogistic rules."
-      : stepNumber > MAX_STEPS 
+      : stepNumber > MAX_STEPS
         ? "Evaluation stopped: too many steps generated. The conclusion might not follow from the premises."
         : "The conclusion does not follow from the premises using the available rules.",
   };
