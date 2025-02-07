@@ -3,21 +3,21 @@ import { Argument, Premise, PremiseForm, Proof, ProofStep } from "@shared/schema
 // Helper to check if a premise is in a specific form
 const isPremiseForm = (premise: Premise, form: PremiseForm) => premise.form === form;
 
+// Helper to check if two premises are equal
+const premisesEqual = (p1: Premise, p2: Premise) =>
+  p1.form === p2.form &&
+  p1.subject === p2.subject &&
+  p1.predicate === p2.predicate;
+
 // Apply obversion rules
 const applyObversion = (premise: Premise): Premise => {
-  if (isPremiseForm(premise, "A")) {
-    return { ...premise, form: "E", predicate: `non-${premise.predicate}` };
+  switch (premise.form) {
+    case "A": return { ...premise, form: "E", predicate: `non-${premise.predicate}` };
+    case "E": return { ...premise, form: "A", predicate: `non-${premise.predicate}` };
+    case "I": return { ...premise, form: "O", predicate: `non-${premise.predicate}` };
+    case "O": return { ...premise, form: "I", predicate: `non-${premise.predicate}` };
+    default: return premise;
   }
-  if (isPremiseForm(premise, "E")) {
-    return { ...premise, form: "A", predicate: `non-${premise.predicate}` };
-  }
-  if (isPremiseForm(premise, "I")) {
-    return { ...premise, form: "O", predicate: `non-${premise.predicate}` };
-  }
-  if (isPremiseForm(premise, "O")) {
-    return { ...premise, form: "I", predicate: `non-${premise.predicate}` };
-  }
-  return premise;
 };
 
 // Apply conversion rules for E and I statements
@@ -68,25 +68,55 @@ const checkDarii = (p1: Premise, p2: Premise): Premise | null => {
   return null;
 };
 
+const MAX_STEPS = 100; // Prevent infinite loops
+
 export const evaluateSyllogism = (argument: Argument): Proof => {
   const steps: ProofStep[] = [];
+  const seenPremises = new Set<string>(); // Track unique premises
   let stepNumber = 1;
+
+  // Helper to check if a premise has been seen before
+  const isPremiseSeen = (premise: Premise): boolean => {
+    const premiseStr = `${premise.form}:${premise.subject}:${premise.predicate}`;
+    if (seenPremises.has(premiseStr)) return true;
+    seenPremises.add(premiseStr);
+    return false;
+  };
 
   // Add initial premises as steps
   argument.premises.forEach(premise => {
-    steps.push({
-      number: stepNumber++,
-      premise,
-      rule: "Premise",
-    });
+    if (!isPremiseSeen(premise)) {
+      steps.push({
+        number: stepNumber++,
+        premise,
+        rule: "Premise",
+      });
+    }
   });
 
+  // Early return if no conclusion to check
+  if (!argument.conclusion) {
+    return {
+      steps,
+      isValid: false,
+      explanation: "No conclusion provided to evaluate.",
+    };
+  }
+
+  // Function to check if we found the conclusion
+  const conclusionFound = () => steps.some(step => 
+    premisesEqual(step.premise, argument.conclusion!)
+  );
+
   // Apply rules and track new conclusions
-  for (let i = 0; i < steps.length; i++) {
-    for (let j = i + 1; j < steps.length; j++) {
+  for (let i = 0; i < steps.length && stepNumber <= MAX_STEPS; i++) {
+    // Check if we already found the conclusion
+    if (conclusionFound()) break;
+
+    for (let j = i + 1; j < steps.length && stepNumber <= MAX_STEPS; j++) {
       // Try Barbara
       const barbara = checkBarbara(steps[i].premise, steps[j].premise);
-      if (barbara) {
+      if (barbara && !isPremiseSeen(barbara)) {
         steps.push({
           number: stepNumber++,
           premise: barbara,
@@ -97,7 +127,7 @@ export const evaluateSyllogism = (argument: Argument): Proof => {
 
       // Try Darii
       const darii = checkDarii(steps[i].premise, steps[j].premise);
-      if (darii) {
+      if (darii && !isPremiseSeen(darii)) {
         steps.push({
           number: stepNumber++,
           premise: darii,
@@ -105,11 +135,13 @@ export const evaluateSyllogism = (argument: Argument): Proof => {
           fromSteps: [steps[i].number, steps[j].number],
         });
       }
+
+      if (conclusionFound()) break;
     }
 
     // Try single premise rules
     const obversion = applyObversion(steps[i].premise);
-    if (obversion) {
+    if (!isPremiseSeen(obversion)) {
       steps.push({
         number: stepNumber++,
         premise: obversion,
@@ -119,7 +151,7 @@ export const evaluateSyllogism = (argument: Argument): Proof => {
     }
 
     const conversion = applyConversion(steps[i].premise);
-    if (conversion) {
+    if (conversion && !isPremiseSeen(conversion)) {
       steps.push({
         number: stepNumber++,
         premise: conversion,
@@ -129,7 +161,7 @@ export const evaluateSyllogism = (argument: Argument): Proof => {
     }
 
     const contraposition = applyContraposition(steps[i].premise);
-    if (contraposition) {
+    if (contraposition && !isPremiseSeen(contraposition)) {
       steps.push({
         number: stepNumber++,
         premise: contraposition,
@@ -139,21 +171,15 @@ export const evaluateSyllogism = (argument: Argument): Proof => {
     }
   }
 
-  // Check if conclusion is valid
-  let isValid = false;
-  if (argument.conclusion) {
-    isValid = steps.some(step => 
-      step.premise.form === argument.conclusion?.form &&
-      step.premise.subject === argument.conclusion?.subject &&
-      step.premise.predicate === argument.conclusion?.predicate
-    );
-  }
+  const isValid = conclusionFound();
 
   return {
     steps,
     isValid,
     explanation: isValid 
       ? "The conclusion follows from the premises using valid syllogistic rules."
-      : "The conclusion does not follow from the premises using the available rules.",
+      : stepNumber > MAX_STEPS 
+        ? "Evaluation stopped: too many steps generated. The conclusion might not follow from the premises."
+        : "The conclusion does not follow from the premises using the available rules.",
   };
 };
