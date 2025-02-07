@@ -79,25 +79,32 @@ const getEquivalents = (premise: Premise): Premise[] => {
 const isPremiseForm = (premise: Premise, form: PremiseForm) =>
   premise.form === form;
 
-// Helper to check if two premises are equal
+// Updated premisesEqual to check all equivalent forms
 const premisesEqual = (p1: Premise, p2: Premise): boolean => {
-  const n1 = normalizePremise(p1);
-  const n2 = normalizePremise(p2);
+  const equiv1 = getEquivalents(p1);
+  const equiv2 = getEquivalents(p2);
 
-  // Direct equality check
-  const directEqual =
-    n1.form === n2.form &&
-    n1.subject === n2.subject &&
-    n1.predicate === n2.predicate;
+  // Check if any equivalent form of p1 matches any equivalent form of p2
+  for (const e1 of equiv1) {
+    for (const e2 of equiv2) {
+      const directEqual =
+        e1.form === e2.form &&
+        e1.subject === e2.subject &&
+        e1.predicate === e2.predicate;
 
-  // For I statements, check conversion equality as well
-  const iConversionEqual =
-    n1.form === "I" &&
-    n2.form === "I" &&
-    n1.subject === n2.predicate &&
-    n1.predicate === n2.subject;
+      // For I statements, also check conversion equality
+      const iConversionEqual =
+        e1.form === "I" &&
+        e2.form === "I" &&
+        e1.subject === e2.predicate &&
+        e1.predicate === e2.subject;
 
-  return directEqual || iConversionEqual;
+      if (directEqual || iConversionEqual) {
+        return true;
+      }
+    }
+  }
+  return false;
 };
 
 // Updated check for Barbara that uses equivalents and is order-agnostic
@@ -141,7 +148,7 @@ const checkDariiWithEquivalents = (p1: Premise, p2: Premise): Premise | null => 
       if (e1.form === "A" && e2.form === "I" && e1.subject === e2.subject) {
         return normalizePremise({
           form: "I",
-          subject: e2.predicate,
+          subject: e2.subject,
           predicate: e1.predicate,
         });
       }
@@ -149,7 +156,7 @@ const checkDariiWithEquivalents = (p1: Premise, p2: Premise): Premise | null => 
       if (e2.form === "A" && e1.form === "I" && e2.subject === e1.subject) {
         return normalizePremise({
           form: "I",
-          subject: e1.predicate,
+          subject: e1.subject,
           predicate: e2.predicate,
         });
       }
@@ -218,7 +225,8 @@ export const evaluateSyllogism = (argument: Argument): Proof => {
   };
 
   const conclusionFound = (): boolean => {
-    const found = steps.find((s) => premisesEqual(s.premise, normalizedConclusion));
+    // Check each derived step against all equivalent forms of the conclusion
+    const found = steps.find((step) => premisesEqual(step.premise, normalizedConclusion));
     if (found) {
       markStepsAsUsed(found);
       return true;
@@ -230,7 +238,7 @@ export const evaluateSyllogism = (argument: Argument): Proof => {
   const tryDerivingNewConclusions = (p1Index: number, p2Index: number) => {
     const newConclusions: { premise: Premise; rule: string; fromSteps: number[] }[] = [];
 
-    // Try Barbara
+    // Try Barbara with both orderings
     const barbara = checkBarbaraWithEquivalents(steps[p1Index].premise, steps[p2Index].premise);
     if (barbara && !isPremiseSeen(barbara, seenPremises)) {
       newConclusions.push({
@@ -240,7 +248,7 @@ export const evaluateSyllogism = (argument: Argument): Proof => {
       });
     }
 
-    // Try Darii
+    // Try Darii with both orderings
     const darii = checkDariiWithEquivalents(steps[p1Index].premise, steps[p2Index].premise);
     if (darii && !isPremiseSeen(darii, seenPremises)) {
       newConclusions.push({
@@ -284,8 +292,8 @@ export const evaluateSyllogism = (argument: Argument): Proof => {
       if (conclusionFound()) break;
     }
 
-    // If we've made progress (added new conclusions), we need to check these
-    // new conclusions against all existing premises in the next iteration
+    // If we've made progress, we need to check the new conclusions 
+    // against all existing premises in the next iteration
     lastCheckedIndex = currentLength;
   } while (madeProgress && stepNumber <= MAX_STEPS);
 
