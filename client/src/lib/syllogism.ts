@@ -22,56 +22,131 @@ const normalizePremise = (premise: Premise): Premise => ({
   predicate: normalizeTerm(premise.predicate),
 });
 
-// Given a premise, return all 4 equivalent forms
-const getEquivalents = (premise: Premise): Premise[] => {
+// Given a premise, return all 4 equivalent forms with transformation information
+const getEquivalents = (premise: Premise): Array<{ 
+  premise: Premise; 
+  transforms: Array<{ rule: string; result: Premise }>;
+}> => {
   const norm = normalizePremise(premise);
   switch (norm.form) {
     case "A":
       return [
         // Original: All p are q
-        norm,
+        { premise: norm, transforms: [] },
         // Obverse: No p are non-q
-        { ...norm, form: "E", predicate: `non-${norm.predicate}` },
+        { 
+          premise: normalizePremise({ ...norm, form: "E", predicate: `non-${norm.predicate}` }),
+          transforms: [{ 
+            rule: "Obversion",
+            result: normalizePremise({ ...norm, form: "E", predicate: `non-${norm.predicate}` })
+          }]
+        },
         // Contrapositive: All non-q are non-p
-        { ...norm, subject: `non-${norm.predicate}`, predicate: `non-${norm.subject}`, form: "A" },
+        {
+          premise: normalizePremise({ ...norm, subject: `non-${norm.predicate}`, predicate: `non-${norm.subject}`, form: "A" }),
+          transforms: [{
+            rule: "Contraposition",
+            result: normalizePremise({ ...norm, subject: `non-${norm.predicate}`, predicate: `non-${norm.subject}`, form: "A" })
+          }]
+        },
         // Obverse of contrapositive: No non-q are p
-        { ...norm, subject: `non-${norm.predicate}`, predicate: norm.subject, form: "E" },
-      ].map(normalizePremise);
+        {
+          premise: normalizePremise({ ...norm, subject: `non-${norm.predicate}`, predicate: norm.subject, form: "E" }),
+          transforms: [
+            { rule: "Contraposition", result: normalizePremise({ ...norm, subject: `non-${norm.predicate}`, predicate: `non-${norm.subject}`, form: "A" }) },
+            { rule: "Obversion", result: normalizePremise({ ...norm, subject: `non-${norm.predicate}`, predicate: norm.subject, form: "E" }) },
+          ]
+        }
+      ];
     case "E":
       return [
         // Original: No p are q
-        norm,
+        { premise: norm, transforms: [] },
         // Obverse: All p are non-q
-        { ...norm, form: "A", predicate: `non-${norm.predicate}` },
+        {
+          premise: normalizePremise({ ...norm, form: "A", predicate: `non-${norm.predicate}` }),
+          transforms: [{
+            rule: "Obversion",
+            result: normalizePremise({ ...norm, form: "A", predicate: `non-${norm.predicate}` })
+          }]
+        },
         // Converse: No q are p
-        { ...norm, subject: norm.predicate, predicate: norm.subject, form: "E" },
+        {
+          premise: normalizePremise({ ...norm, subject: norm.predicate, predicate: norm.subject, form: "E" }),
+          transforms: [{
+            rule: "Conversion",
+            result: normalizePremise({ ...norm, subject: norm.predicate, predicate: norm.subject, form: "E" })
+          }]
+        },
         // Obverse of converse: All q are non-p
-        { ...norm, subject: norm.predicate, predicate: `non-${norm.subject}`, form: "A" },
-      ].map(normalizePremise);
+        {
+          premise: normalizePremise({ ...norm, subject: norm.predicate, predicate: `non-${norm.subject}`, form: "A" }),
+          transforms: [
+            { rule: "Conversion", result: normalizePremise({ ...norm, subject: norm.predicate, predicate: norm.subject, form: "E" }) },
+            { rule: "Obversion", result: normalizePremise({ ...norm, subject: norm.predicate, predicate: `non-${norm.subject}`, form: "A" }) },
+          ]
+        }
+      ];
     case "I":
       return [
         // Original: Some p are q
-        norm,
+        { premise: norm, transforms: [] },
         // Obverse: Some p are not non-q
-        { ...norm, form: "O", predicate: `non-${norm.predicate}` },
+        {
+          premise: normalizePremise({ ...norm, form: "O", predicate: `non-${norm.predicate}` }),
+          transforms: [{
+            rule: "Obversion",
+            result: normalizePremise({ ...norm, form: "O", predicate: `non-${norm.predicate}` })
+          }]
+        },
         // Converse: Some q are p
-        { ...norm, subject: norm.predicate, predicate: norm.subject, form: "I" },
+        {
+          premise: normalizePremise({ ...norm, subject: norm.predicate, predicate: norm.subject, form: "I" }),
+          transforms: [{
+            rule: "Conversion",
+            result: normalizePremise({ ...norm, subject: norm.predicate, predicate: norm.subject, form: "I" })
+          }]
+        },
         // Obverse of converse: Some q are not non-p
-        { ...norm, subject: norm.predicate, predicate: `non-${norm.subject}`, form: "O" },
-      ].map(normalizePremise);
+        {
+          premise: normalizePremise({ ...norm, subject: norm.predicate, predicate: `non-${norm.subject}`, form: "O" }),
+          transforms: [
+            { rule: "Conversion", result: normalizePremise({ ...norm, subject: norm.predicate, predicate: norm.subject, form: "I" }) },
+            { rule: "Obversion", result: normalizePremise({ ...norm, subject: norm.predicate, predicate: `non-${norm.subject}`, form: "O" }) },
+          ]
+        }
+      ];
     case "O":
       return [
         // Original: Some p are not q
-        norm,
+        { premise: norm, transforms: [] },
         // Obverse: Some p are non-q
-        { ...norm, form: "I", predicate: `non-${norm.predicate}` },
+        {
+          premise: normalizePremise({ ...norm, form: "I", predicate: `non-${norm.predicate}` }),
+          transforms: [{
+            rule: "Obversion",
+            result: normalizePremise({ ...norm, form: "I", predicate: `non-${norm.predicate}` })
+          }]
+        },
         // Contrapositive: Some non-q are p
-        { ...norm, subject: `non-${norm.predicate}`, predicate: norm.subject, form: "O" },
+        {
+          premise: normalizePremise({ ...norm, subject: `non-${norm.predicate}`, predicate: norm.subject, form: "O" }),
+          transforms: [{
+            rule: "Contraposition",
+            result: normalizePremise({ ...norm, subject: `non-${norm.predicate}`, predicate: norm.subject, form: "O" })
+          }]
+        },
         // Obverse of contrapositive: Some non-q are non-p
-        { ...norm, subject: `non-${norm.predicate}`, predicate: `non-${norm.subject}`, form: "I" },
-      ].map(normalizePremise);
+        {
+          premise: normalizePremise({ ...norm, subject: `non-${norm.predicate}`, predicate: `non-${norm.subject}`, form: "I" }),
+          transforms: [
+            { rule: "Contraposition", result: normalizePremise({ ...norm, subject: `non-${norm.predicate}`, predicate: norm.subject, form: "O" }) },
+            { rule: "Obversion", result: normalizePremise({ ...norm, subject: `non-${norm.predicate}`, predicate: `non-${norm.subject}`, form: "I" }) },
+          ]
+        }
+      ];
     default:
-      return [norm];
+      return [{ premise: norm, transforms: [] }];
   }
 };
 
@@ -88,97 +163,38 @@ const premisesEqual = (p1: Premise, p2: Premise): boolean => {
   for (const e1 of equiv1) {
     for (const e2 of equiv2) {
       const directEqual =
-        e1.form === e2.form &&
-        e1.subject === e2.subject &&
-        e1.predicate === e2.predicate;
+        e1.premise.form === e2.premise.form &&
+        e1.premise.subject === e2.premise.subject &&
+        e1.premise.predicate === e2.premise.predicate;
 
-      // For I statements, also check conversion equality
-      const iConversionEqual =
-        e1.form === "I" &&
-        e2.form === "I" &&
-        e1.subject === e2.predicate &&
-        e1.predicate === e2.subject;
-
-      if (directEqual || iConversionEqual) {
-        return true;
-      }
+      if (directEqual) return true;
     }
   }
   return false;
 };
 
-// Updated check for Barbara that uses equivalents and is order-agnostic
-const checkBarbaraWithEquivalents = (p1: Premise, p2: Premise): Premise | null => {
-  const equiv1 = getEquivalents(p1);
-  const equiv2 = getEquivalents(p2);
-
-  // Try both orderings of the premises with their equivalents
-  for (const e1 of equiv1) {
-    for (const e2 of equiv2) {
-      // Try first ordering: e1 -> e2
-      if (e1.form === "A" && e2.form === "A" && e1.predicate === e2.subject) {
-        return normalizePremise({
-          form: "A",
-          subject: e1.subject,
-          predicate: e2.predicate,
-        });
-      }
-      // Try reverse ordering: e2 -> e1
-      if (e2.form === "A" && e1.form === "A" && e2.predicate === e1.subject) {
-        return normalizePremise({
-          form: "A",
-          subject: e2.subject,
-          predicate: e1.predicate,
-        });
-      }
-    }
-  }
-  return null;
-};
-
-// Updated check for Darii that uses equivalents and is order-agnostic
-const checkDariiWithEquivalents = (p1: Premise, p2: Premise): Premise | null => {
-  const equiv1 = getEquivalents(p1);
-  const equiv2 = getEquivalents(p2);
-
-  // Try both orderings of the premises with their equivalents
-  for (const e1 of equiv1) {
-    for (const e2 of equiv2) {
-      // Try first ordering: A premise -> I premise
-      if (e1.form === "A" && e2.form === "I" && e1.subject === e2.subject) {
-        return normalizePremise({
-          form: "I",
-          subject: e2.subject,
-          predicate: e1.predicate,
-        });
-      }
-      // Try reverse ordering: I premise -> A premise
-      if (e2.form === "A" && e1.form === "I" && e2.subject === e1.subject) {
-        return normalizePremise({
-          form: "I",
-          subject: e1.subject,
-          predicate: e2.predicate,
-        });
-      }
-    }
-  }
-  return null;
-};
-
-const MAX_STEPS = 500;
-const MAX_TERM_LENGTH = 100;
-
-// Updated isPremiseSeen to check all equivalent forms
+// Updated isPremiseSeen to handle transform tracking
 const isPremiseSeen = (premise: Premise, seenPremises: Set<string>): boolean => {
   const equivalents = getEquivalents(premise);
   for (const eq of equivalents) {
-    const eqStr = `${eq.form}:${eq.subject}:${eq.predicate}`;
+    const eqStr = `${eq.premise.form}:${eq.premise.subject}:${eq.premise.predicate}`;
     if (seenPremises.has(eqStr)) return true;
   }
   for (const eq of equivalents) {
-    seenPremises.add(`${eq.form}:${eq.subject}:${eq.predicate}`);
+    seenPremises.add(`${eq.premise.form}:${eq.premise.subject}:${eq.premise.predicate}`);
   }
   return false;
+};
+
+// Helper to find transformation path between two premises
+const findTransformPath = (source: Premise, target: Premise): Array<{ rule: string; result: Premise }> | null => {
+  const sourceEquivs = getEquivalents(source);
+  for (const equiv of sourceEquivs) {
+    if (premisesEqual(equiv.premise, target)) {
+      return equiv.transforms;
+    }
+  }
+  return null;
 };
 
 export const evaluateSyllogism = (argument: Argument): Proof => {
@@ -189,18 +205,16 @@ export const evaluateSyllogism = (argument: Argument): Proof => {
   // Track which steps were used in deriving the conclusion
   const usedSteps = new Set<number>();
 
-  // Add initial premises (and for each, add all equivalents to our seen set)
+  // Add initial premises
   argument.premises.forEach((premise) => {
-    const equivalents = getEquivalents(premise);
-    equivalents.forEach((eq) => {
-      if (!isPremiseSeen(eq, seenPremises)) {
-        steps.push({
-          number: stepNumber++,
-          premise: eq,
-          rule: "Premise",
-        });
-      }
-    });
+    const normalized = normalizePremise(premise);
+    if (!isPremiseSeen(normalized, seenPremises)) {
+      steps.push({
+        number: stepNumber++,
+        premise: normalized,
+        rule: "Premise",
+      });
+    }
   });
 
   if (!argument.conclusion) {
@@ -213,93 +227,125 @@ export const evaluateSyllogism = (argument: Argument): Proof => {
 
   const normalizedConclusion = normalizePremise(argument.conclusion);
 
-  // Helper to mark steps as used
-  const markStepsAsUsed = (step: ProofStep) => {
-    usedSteps.add(step.number);
-    if (step.fromSteps) {
-      step.fromSteps.forEach((num) => {
-        usedSteps.add(num);
-        steps.filter((s) => s.number === num).forEach(markStepsAsUsed);
-      });
-    }
-  };
-
-  const conclusionFound = (): boolean => {
-    // Check each derived step against all equivalent forms of the conclusion
-    const found = steps.find((step) => premisesEqual(step.premise, normalizedConclusion));
-    if (found) {
-      markStepsAsUsed(found);
-      return true;
-    }
-    return false;
-  };
-
   // Helper to try deriving new conclusions from a pair of premises
   const tryDerivingNewConclusions = (p1Index: number, p2Index: number) => {
-    const newConclusions: { premise: Premise; rule: string; fromSteps: number[] }[] = [];
+    const results: Array<{
+      premise: Premise;
+      rule: string;
+      fromSteps: number[];
+      transforms?: Array<{ rule: string; result: Premise }>;
+    }> = [];
 
-    // Try Barbara with both orderings
-    const barbara = checkBarbaraWithEquivalents(steps[p1Index].premise, steps[p2Index].premise);
-    if (barbara && !isPremiseSeen(barbara, seenPremises)) {
-      newConclusions.push({
-        premise: barbara,
-        rule: "Barbara",
-        fromSteps: [steps[p1Index].number, steps[p2Index].number],
-      });
+    const p1 = steps[p1Index].premise;
+    const p2 = steps[p2Index].premise;
+
+    // Try all equivalent forms for Barbara
+    const equiv1 = getEquivalents(p1);
+    const equiv2 = getEquivalents(p2);
+
+    for (const e1 of equiv1) {
+      for (const e2 of equiv2) {
+        if (e1.premise.form === "A" && e2.premise.form === "A" && 
+            e1.premise.predicate === e2.premise.subject) {
+          const conclusion = normalizePremise({
+            form: "A",
+            subject: e1.premise.subject,
+            predicate: e2.premise.predicate,
+          });
+
+          if (!isPremiseSeen(conclusion, seenPremises)) {
+            results.push({
+              premise: conclusion,
+              rule: "Barbara",
+              fromSteps: [p1Index + 1, p2Index + 1],
+              transforms: [...e1.transforms, ...e2.transforms]
+            });
+          }
+        }
+      }
     }
 
-    // Try Darii with both orderings
-    const darii = checkDariiWithEquivalents(steps[p1Index].premise, steps[p2Index].premise);
-    if (darii && !isPremiseSeen(darii, seenPremises)) {
-      newConclusions.push({
-        premise: darii,
-        rule: "Darii",
-        fromSteps: [steps[p1Index].number, steps[p2Index].number],
-      });
+    // Similarly for Darii
+    for (const e1 of equiv1) {
+      for (const e2 of equiv2) {
+        if (e1.premise.form === "A" && e2.premise.form === "I" &&
+            e1.premise.subject === e2.premise.subject) {
+          const conclusion = normalizePremise({
+            form: "I",
+            subject: e2.premise.subject,
+            predicate: e1.premise.predicate,
+          });
+
+          if (!isPremiseSeen(conclusion, seenPremises)) {
+            results.push({
+              premise: conclusion,
+              rule: "Darii",
+              fromSteps: [p1Index + 1, p2Index + 1],
+              transforms: [...e1.transforms, ...e2.transforms]
+            });
+          }
+        }
+      }
     }
 
-    return newConclusions;
+    return results;
   };
 
-  let lastCheckedIndex = 0;
+  // Main derivation loop
   let madeProgress;
-
   do {
     madeProgress = false;
     const currentLength = steps.length;
 
-    // Try all pairs of existing steps
-    for (let i = 0; i < currentLength; i++) {
-      if (conclusionFound()) break;
+    for (let i = 0; i < currentLength && stepNumber <= MAX_STEPS; i++) {
+      if (premisesEqual(steps[i].premise, normalizedConclusion)) {
+        // Found the conclusion - mark all steps in the path
+        let current = i;
+        while (current >= 0) {
+          usedSteps.add(steps[current].number);
+          if (steps[current].fromSteps) {
+            steps[current].fromSteps.forEach(step => {
+              usedSteps.add(step);
+            });
+          }
+          current--;
+        }
+        break;
+      }
 
-      for (let j = i + 1; j < currentLength; j++) {
+      for (let j = i + 1; j < currentLength && stepNumber <= MAX_STEPS; j++) {
         const newConclusions = tryDerivingNewConclusions(i, j);
 
         for (const conclusion of newConclusions) {
+          // Add any necessary transformation steps first
+          if (conclusion.transforms && conclusion.transforms.length > 0) {
+            conclusion.transforms.forEach(transform => {
+              steps.push({
+                number: stepNumber++,
+                premise: transform.result,
+                rule: transform.rule,
+                fromSteps: [conclusion.fromSteps[conclusion.transforms!.indexOf(transform)]],
+              });
+            });
+          }
+
+          // Then add the derived conclusion
           steps.push({
             number: stepNumber++,
-            ...conclusion
+            premise: conclusion.premise,
+            rule: conclusion.rule,
+            fromSteps: conclusion.fromSteps,
           });
+
           madeProgress = true;
-
-          // Check if this new conclusion leads directly to the target conclusion
-          if (conclusionFound()) break;
         }
-
-        if (conclusionFound()) break;
       }
-
-      if (conclusionFound()) break;
     }
-
-    // If we've made progress, we need to check the new conclusions 
-    // against all existing premises in the next iteration
-    lastCheckedIndex = currentLength;
   } while (madeProgress && stepNumber <= MAX_STEPS);
 
-  const isValid = conclusionFound();
+  const isValid = steps.some(step => premisesEqual(step.premise, normalizedConclusion));
   const finalSteps = isValid
-    ? steps.filter((s) => usedSteps.has(s.number))
+    ? steps.filter(step => usedSteps.has(step.number))
     : steps;
 
   return {
