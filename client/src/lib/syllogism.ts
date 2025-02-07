@@ -1,32 +1,50 @@
 import { Argument, Premise, PremiseForm, Proof, ProofStep } from "@shared/schema";
 
+// Normalize terms by reducing multiple negations
+const normalizeTerm = (term: string): string => {
+  const matches = term.match(/^(non-)+/);
+  if (!matches) return term;
+  const nonCount = matches[0].split("non-").length - 1;
+  const baseTerm = term.replace(/^(non-)+/, "");
+  return nonCount % 2 === 0 ? baseTerm : `non-${baseTerm}`;
+};
+
 // Helper to check if a premise is in a specific form
 const isPremiseForm = (premise: Premise, form: PremiseForm) => premise.form === form;
 
 // Helper to check if two premises are equal
 const premisesEqual = (p1: Premise, p2: Premise) =>
   p1.form === p2.form &&
-  p1.subject === p2.subject &&
-  p1.predicate === p2.predicate;
+  normalizeTerm(p1.subject) === normalizeTerm(p2.subject) &&
+  normalizeTerm(p1.predicate) === normalizeTerm(p2.predicate);
+
+// Helper to normalize a premise
+const normalizePremise = (premise: Premise): Premise => ({
+  ...premise,
+  subject: normalizeTerm(premise.subject),
+  predicate: normalizeTerm(premise.predicate),
+});
 
 // Apply obversion rules
 const applyObversion = (premise: Premise): Premise => {
-  switch (premise.form) {
-    case "A": return { ...premise, form: "E", predicate: `non-${premise.predicate}` };
-    case "E": return { ...premise, form: "A", predicate: `non-${premise.predicate}` };
-    case "I": return { ...premise, form: "O", predicate: `non-${premise.predicate}` };
-    case "O": return { ...premise, form: "I", predicate: `non-${premise.predicate}` };
-    default: return premise;
+  const normalized = normalizePremise(premise);
+  switch (normalized.form) {
+    case "A": return { ...normalized, form: "E", predicate: `non-${normalized.predicate}` };
+    case "E": return { ...normalized, form: "A", predicate: `non-${normalized.predicate}` };
+    case "I": return { ...normalized, form: "O", predicate: `non-${normalized.predicate}` };
+    case "O": return { ...normalized, form: "I", predicate: `non-${normalized.predicate}` };
+    default: return normalized;
   }
 };
 
 // Apply conversion rules for E and I statements
 const applyConversion = (premise: Premise): Premise | null => {
   if (isPremiseForm(premise, "E") || isPremiseForm(premise, "I")) {
+    const normalized = normalizePremise(premise);
     return {
-      ...premise,
-      subject: premise.predicate,
-      predicate: premise.subject,
+      ...normalized,
+      subject: normalized.predicate,
+      predicate: normalized.subject,
     };
   }
   return null;
@@ -35,10 +53,11 @@ const applyConversion = (premise: Premise): Premise | null => {
 // Apply contraposition rules for A and O statements
 const applyContraposition = (premise: Premise): Premise | null => {
   if (isPremiseForm(premise, "A") || isPremiseForm(premise, "O")) {
+    const normalized = normalizePremise(premise);
     return {
-      ...premise,
-      subject: `non-${premise.predicate}`,
-      predicate: `non-${premise.subject}`,
+      ...normalized,
+      subject: `non-${normalized.predicate}`,
+      predicate: `non-${normalized.subject}`,
     };
   }
   return null;
@@ -46,11 +65,13 @@ const applyContraposition = (premise: Premise): Premise | null => {
 
 // Check if Barbara syllogism is applicable
 const checkBarbara = (p1: Premise, p2: Premise): Premise | null => {
-  if (isPremiseForm(p1, "A") && isPremiseForm(p2, "A") && p1.predicate === p2.subject) {
+  const n1 = normalizePremise(p1);
+  const n2 = normalizePremise(p2);
+  if (isPremiseForm(n1, "A") && isPremiseForm(n2, "A") && n1.predicate === n2.subject) {
     return {
       form: "A",
-      subject: p2.subject,
-      predicate: p1.predicate,
+      subject: n2.subject,
+      predicate: n1.predicate,
     };
   }
   return null;
@@ -58,17 +79,20 @@ const checkBarbara = (p1: Premise, p2: Premise): Premise | null => {
 
 // Check if Darii syllogism is applicable
 const checkDarii = (p1: Premise, p2: Premise): Premise | null => {
-  if (isPremiseForm(p1, "A") && isPremiseForm(p2, "I") && p1.predicate === p2.subject) {
+  const n1 = normalizePremise(p1);
+  const n2 = normalizePremise(p2);
+  if (isPremiseForm(n1, "A") && isPremiseForm(n2, "I") && n1.predicate === n2.subject) {
     return {
       form: "I",
-      subject: p2.subject,
-      predicate: p1.predicate,
+      subject: n2.subject,
+      predicate: n1.predicate,
     };
   }
   return null;
 };
 
-const MAX_STEPS = 100; // Prevent infinite loops
+const MAX_STEPS = 50; // Reduced from 100 to prevent excessive computation
+const MAX_TERM_LENGTH = 100; // Prevent extremely long terms
 
 export const evaluateSyllogism = (argument: Argument): Proof => {
   const steps: ProofStep[] = [];
@@ -77,18 +101,27 @@ export const evaluateSyllogism = (argument: Argument): Proof => {
 
   // Helper to check if a premise has been seen before
   const isPremiseSeen = (premise: Premise): boolean => {
-    const premiseStr = `${premise.form}:${premise.subject}:${premise.predicate}`;
+    const normalized = normalizePremise(premise);
+    const premiseStr = `${normalized.form}:${normalized.subject}:${normalized.predicate}`;
     if (seenPremises.has(premiseStr)) return true;
+
+    // Prevent extremely long terms
+    if (normalized.subject.length > MAX_TERM_LENGTH || 
+        normalized.predicate.length > MAX_TERM_LENGTH) {
+      return true;
+    }
+
     seenPremises.add(premiseStr);
     return false;
   };
 
   // Add initial premises as steps
   argument.premises.forEach(premise => {
-    if (!isPremiseSeen(premise)) {
+    const normalized = normalizePremise(premise);
+    if (!isPremiseSeen(normalized)) {
       steps.push({
         number: stepNumber++,
-        premise,
+        premise: normalized,
         rule: "Premise",
       });
     }
@@ -103,9 +136,12 @@ export const evaluateSyllogism = (argument: Argument): Proof => {
     };
   }
 
+  // Normalize the conclusion for comparison
+  const normalizedConclusion = normalizePremise(argument.conclusion);
+
   // Function to check if we found the conclusion
   const conclusionFound = () => steps.some(step => 
-    premisesEqual(step.premise, argument.conclusion!)
+    premisesEqual(step.premise, normalizedConclusion)
   );
 
   // Apply rules and track new conclusions
@@ -141,7 +177,7 @@ export const evaluateSyllogism = (argument: Argument): Proof => {
 
     // Try single premise rules
     const obversion = applyObversion(steps[i].premise);
-    if (!isPremiseSeen(obversion)) {
+    if (obversion && !isPremiseSeen(obversion)) {
       steps.push({
         number: stepNumber++,
         premise: obversion,
@@ -169,6 +205,8 @@ export const evaluateSyllogism = (argument: Argument): Proof => {
         fromSteps: [steps[i].number],
       });
     }
+
+    if (conclusionFound()) break;
   }
 
   const isValid = conclusionFound();
