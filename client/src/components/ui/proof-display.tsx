@@ -35,10 +35,13 @@ export function ProofDisplay({ steps, isValid, explanation }: ProofDisplayProps)
   // Create a mapping of old step numbers to new sequential numbers
   const numberMap = new Map(steps.map((step, index) => [step.number, index + 1]));
 
-  // Filter steps based on showImplicit setting
+  // Filter steps and maintain correct numbering
   const visibleSteps = showImplicit 
     ? steps 
     : steps.filter(step => step.rule === "Premise" || step.rule === "Barbara" || step.rule === "Darii");
+  
+  // Create a mapping of old step numbers to new sequential numbers based on visible steps
+  const numberMap = new Map(visibleSteps.map((step, index) => [step.number, index + 1]));
 
   return (
     <div className="space-y-4">

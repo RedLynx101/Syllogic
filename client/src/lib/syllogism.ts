@@ -302,8 +302,23 @@ export const evaluateSyllogism = (argument: Argument): Proof => {
 
     for (let i = 0; i < currentLength && stepNumber <= MAX_STEPS; i++) {
       if (premisesEqual(steps[i].premise, normalizedConclusion)) {
-        // Found the conclusion - mark all steps in the path
-        let current = i;
+        // Found a matching conclusion - add transformation steps if needed
+        const transformPath = findTransformPath(steps[i].premise, normalizedConclusion);
+        if (transformPath) {
+          let lastStep = steps[i].number;
+          transformPath.forEach(transform => {
+            steps.push({
+              number: stepNumber++,
+              premise: transform.result,
+              rule: transform.rule,
+              fromSteps: [lastStep],
+            });
+            lastStep = stepNumber - 1;
+          });
+        }
+
+        // Mark all steps in the path
+        let current = steps.length - 1;
         while (current >= 0) {
           usedSteps.add(steps[current].number);
           if (steps[current].fromSteps) {
