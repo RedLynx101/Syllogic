@@ -32,9 +32,6 @@ export function ProofDisplay({ steps, isValid, explanation }: ProofDisplayProps)
     localStorage.setItem("showImplicitSteps", String(newValue));
   };
 
-  // Create a mapping of old step numbers to new sequential numbers
-  const numberMap = new Map(steps.map((step, index) => [step.number, index + 1]));
-
   // Filter steps and maintain correct numbering
   const visibleSteps = showImplicit 
     ? steps 
