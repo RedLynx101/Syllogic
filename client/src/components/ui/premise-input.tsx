@@ -3,6 +3,8 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { PremiseForm, type Premise } from "@shared/schema";
 import { X } from "lucide-react";
 
@@ -29,12 +31,12 @@ export function PremiseInput({ value, onChange, onRemove, isConclusion }: Premis
   };
 
   return (
-    <div className="flex gap-2 items-center">
+    <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:gap-2">
       <Select
         value={value.form}
         onValueChange={(form) => onChange({ ...value, form: form as PremiseForm })}
       >
-        <SelectTrigger className="w-[100px]">
+        <SelectTrigger className="w-[120px]">
           <SelectValue placeholder="Form" />
         </SelectTrigger>
         <SelectContent>
@@ -45,38 +47,68 @@ export function PremiseInput({ value, onChange, onRemove, isConclusion }: Premis
         </SelectContent>
       </Select>
 
-      <div className="flex items-center gap-2">
-        <Checkbox
-          id={`subject-not-${isConclusion ? 'conclusion' : value.subject}`}
-          checked={value.subject.startsWith('non-')}
-          onCheckedChange={handleSubjectNegation}
-        />
-        <Input
-          placeholder="Subject"
-          value={value.subject.replace(/^non-/, '')}
-          onChange={(e) => onChange({ ...value, subject: value.subject.startsWith('non-') ? `non-${e.target.value}` : e.target.value })}
-          className="w-[200px]"
-        />
-      </div>
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <div className="flex items-center gap-2">
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id={`subject-not-${isConclusion ? 'conclusion' : value.subject}`}
+                    checked={value.subject.startsWith('non-')}
+                    onCheckedChange={handleSubjectNegation}
+                  />
+                  <Label htmlFor={`subject-not-${isConclusion ? 'conclusion' : value.subject}`} className="text-sm font-medium">
+                    Negative
+                  </Label>
+                </div>
+                <Input
+                  placeholder="Subject"
+                  value={value.subject.replace(/^non-/, '')}
+                  onChange={(e) => onChange({ ...value, subject: value.subject.startsWith('non-') ? `non-${e.target.value}` : e.target.value })}
+                  className="w-[180px] sm:w-[200px]"
+                />
+              </div>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>Check to negate the subject (add "non-")</p>
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
 
-      <span className="text-muted-foreground">are</span>
+        <span className="hidden sm:block text-muted-foreground">are</span>
 
-      <div className="flex items-center gap-2">
-        <Checkbox
-          id={`predicate-not-${isConclusion ? 'conclusion' : value.predicate}`}
-          checked={value.predicate.startsWith('non-')}
-          onCheckedChange={handlePredicateNegation}
-        />
-        <Input
-          placeholder="Predicate"
-          value={value.predicate.replace(/^non-/, '')}
-          onChange={(e) => onChange({ ...value, predicate: value.predicate.startsWith('non-') ? `non-${e.target.value}` : e.target.value })}
-          className="w-[200px]"
-        />
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <div className="flex items-center gap-2">
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id={`predicate-not-${isConclusion ? 'conclusion' : value.predicate}`}
+                    checked={value.predicate.startsWith('non-')}
+                    onCheckedChange={handlePredicateNegation}
+                  />
+                  <Label htmlFor={`predicate-not-${isConclusion ? 'conclusion' : value.predicate}`} className="text-sm font-medium">
+                    Negative
+                  </Label>
+                </div>
+                <Input
+                  placeholder="Predicate"
+                  value={value.predicate.replace(/^non-/, '')}
+                  onChange={(e) => onChange({ ...value, predicate: value.predicate.startsWith('non-') ? `non-${e.target.value}` : e.target.value })}
+                  className="w-[180px] sm:w-[200px]"
+                />
+              </div>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>Check to negate the predicate (add "non-")</p>
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
       </div>
 
       {!isConclusion && onRemove && (
-        <Button variant="ghost" size="icon" onClick={onRemove}>
+        <Button variant="ghost" size="icon" onClick={onRemove} className="self-center">
           <X className="h-4 w-4" />
         </Button>
       )}
