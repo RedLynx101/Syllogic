@@ -91,21 +91,22 @@ const checkDarii = (p1: Premise, p2: Premise): Premise | null => {
   return null;
 };
 
-const MAX_STEPS = 50; // Reduced from 100 to prevent excessive computation
-const MAX_TERM_LENGTH = 100; // Prevent extremely long terms
+const MAX_STEPS = 50;
+const MAX_TERM_LENGTH = 100;
 
 export const evaluateSyllogism = (argument: Argument): Proof => {
   const steps: ProofStep[] = [];
-  const seenPremises = new Set<string>(); // Track unique premises
+  const seenPremises = new Set<string>();
   let stepNumber = 1;
 
-  // Helper to check if a premise has been seen before
+  // Track which steps were used to derive the conclusion
+  const usedSteps = new Set<number>();
+
   const isPremiseSeen = (premise: Premise): boolean => {
     const normalized = normalizePremise(premise);
     const premiseStr = `${normalized.form}:${normalized.subject}:${normalized.predicate}`;
     if (seenPremises.has(premiseStr)) return true;
 
-    // Prevent extremely long terms
     if (normalized.subject.length > MAX_TERM_LENGTH || 
         normalized.predicate.length > MAX_TERM_LENGTH) {
       return true;
@@ -127,7 +128,6 @@ export const evaluateSyllogism = (argument: Argument): Proof => {
     }
   });
 
-  // Early return if no conclusion to check
   if (!argument.conclusion) {
     return {
       steps,
@@ -136,21 +136,33 @@ export const evaluateSyllogism = (argument: Argument): Proof => {
     };
   }
 
-  // Normalize the conclusion for comparison
   const normalizedConclusion = normalizePremise(argument.conclusion);
 
-  // Function to check if we found the conclusion
-  const conclusionFound = () => steps.some(step => 
-    premisesEqual(step.premise, normalizedConclusion)
-  );
+  // Helper to track steps used in deriving a conclusion
+  const markStepsAsUsed = (step: ProofStep) => {
+    usedSteps.add(step.number);
+    if (step.fromSteps) {
+      step.fromSteps.forEach(fromStep => {
+        usedSteps.add(fromStep);
+        // Recursively mark steps that led to the fromSteps
+        steps.filter(s => s.number === fromStep).forEach(markStepsAsUsed);
+      });
+    }
+  };
 
-  // Apply rules and track new conclusions
+  const conclusionFound = () => {
+    const foundStep = steps.find(step => premisesEqual(step.premise, normalizedConclusion));
+    if (foundStep) {
+      markStepsAsUsed(foundStep);
+      return true;
+    }
+    return false;
+  };
+
   for (let i = 0; i < steps.length && stepNumber <= MAX_STEPS; i++) {
-    // Check if we already found the conclusion
     if (conclusionFound()) break;
 
     for (let j = i + 1; j < steps.length && stepNumber <= MAX_STEPS; j++) {
-      // Try Barbara
       const barbara = checkBarbara(steps[i].premise, steps[j].premise);
       if (barbara && !isPremiseSeen(barbara)) {
         steps.push({
@@ -161,7 +173,6 @@ export const evaluateSyllogism = (argument: Argument): Proof => {
         });
       }
 
-      // Try Darii
       const darii = checkDarii(steps[i].premise, steps[j].premise);
       if (darii && !isPremiseSeen(darii)) {
         steps.push({
@@ -211,8 +222,13 @@ export const evaluateSyllogism = (argument: Argument): Proof => {
 
   const isValid = conclusionFound();
 
+  // For valid proofs, only include steps that were used to derive the conclusion
+  const finalSteps = isValid
+    ? steps.filter(step => usedSteps.has(step.number))
+    : steps;
+
   return {
-    steps,
+    steps: finalSteps,
     isValid,
     explanation: isValid 
       ? "The conclusion follows from the premises using valid syllogistic rules."
