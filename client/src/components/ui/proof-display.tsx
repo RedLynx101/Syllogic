@@ -1,6 +1,14 @@
 
 import { ProofStep } from "@shared/schema";
 import { cn } from "@/lib/utils";
+import { useState, useEffect } from "react";
+import { Button } from "./button";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "./tooltip";
 
 interface ProofDisplayProps {
   steps: ProofStep[];
@@ -9,8 +17,28 @@ interface ProofDisplayProps {
 }
 
 export function ProofDisplay({ steps, isValid, explanation }: ProofDisplayProps) {
+  const [showImplicit, setShowImplicit] = useState(true);
+  
+  useEffect(() => {
+    const stored = localStorage.getItem("showImplicitSteps");
+    if (stored !== null) {
+      setShowImplicit(stored === "true");
+    }
+  }, []);
+
+  const toggleImplicit = () => {
+    const newValue = !showImplicit;
+    setShowImplicit(newValue);
+    localStorage.setItem("showImplicitSteps", String(newValue));
+  };
+
   // Create a mapping of old step numbers to new sequential numbers
   const numberMap = new Map(steps.map((step, index) => [step.number, index + 1]));
+
+  // Filter steps based on showImplicit setting
+  const visibleSteps = showImplicit 
+    ? steps 
+    : steps.filter(step => !step.transforms || step.transforms.length === 0);
 
   return (
     <div className="space-y-4">
@@ -25,14 +53,40 @@ export function ProofDisplay({ steps, isValid, explanation }: ProofDisplayProps)
         <p className="text-muted-foreground">{explanation}</p>
       )}
 
+      <div className="mb-4">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={toggleImplicit}
+          className="w-full sm:w-auto"
+        >
+          {showImplicit ? "Hide" : "Show"} Implicit Steps
+        </Button>
+      </div>
+
       <div className="space-y-2">
-        {steps.map((step, index) => (
+        {visibleSteps.map((step, index) => (
           <div key={step.number} className="flex items-start gap-4 p-2 rounded-lg hover:bg-accent">
             <span className="font-mono w-8">{index + 1}.</span>
             <div className="flex-1">
-              <div className="font-medium">
-                {step.premise.form} - {step.premise.subject} are {step.premise.predicate}
-              </div>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <div className="font-medium cursor-help">
+                      {step.premise.form} - {step.premise.subject} are {step.premise.predicate}
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent className="w-80">
+                    <div className="space-y-2 p-2">
+                      {step.transforms?.map((transform, i) => (
+                        <div key={i} className="text-sm">
+                          {transform.rule}: {transform.result.form} - {transform.result.subject} are {transform.result.predicate}
+                        </div>
+                      ))}
+                    </div>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
               <div className="text-sm text-muted-foreground">
                 {step.rule}
                 {step.fromSteps && ` (from steps ${step.fromSteps.map(s => numberMap.get(s)).join(", ")})`}
