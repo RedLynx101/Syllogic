@@ -38,7 +38,7 @@ export function ProofDisplay({ steps, isValid, explanation }: ProofDisplayProps)
   // Filter steps based on showImplicit setting
   const visibleSteps = showImplicit 
     ? steps 
-    : steps.filter(step => !step.transforms || step.transforms.length === 0);
+    : steps.filter(step => step.rule === "Premise" || step.rule === "Barbara" || step.rule === "Darii");
 
   return (
     <div className="space-y-4">
@@ -69,24 +69,30 @@ export function ProofDisplay({ steps, isValid, explanation }: ProofDisplayProps)
           <div key={step.number} className="flex items-start gap-4 p-2 rounded-lg hover:bg-accent">
             <span className="font-mono w-8">{index + 1}.</span>
             <div className="flex-1">
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <div className="font-medium cursor-help">
-                      {step.premise.form} - {step.premise.subject} are {step.premise.predicate}
-                    </div>
-                  </TooltipTrigger>
-                  <TooltipContent className="w-80">
-                    <div className="space-y-2 p-2">
-                      {step.transforms?.map((transform, i) => (
-                        <div key={i} className="text-sm">
-                          {transform.rule}: {transform.result.form} - {transform.result.subject} are {transform.result.predicate}
-                        </div>
-                      ))}
-                    </div>
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
+              {step.transforms && step.transforms.length > 0 ? (
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <div className="font-medium cursor-help">
+                        {step.premise.form} - {step.premise.subject} are {step.premise.predicate}
+                      </div>
+                    </TooltipTrigger>
+                    <TooltipContent className="w-80">
+                      <div className="space-y-2 p-2">
+                        {step.transforms.map((transform, i) => (
+                          <div key={i} className="text-sm">
+                            {transform.rule}: {transform.result.form} - {transform.result.subject} are {transform.result.predicate}
+                          </div>
+                        ))}
+                      </div>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              ) : (
+                <div className="font-medium">
+                  {step.premise.form} - {step.premise.subject} are {step.premise.predicate}
+                </div>
+              )}
               <div className="text-sm text-muted-foreground">
                 {step.rule}
                 {step.fromSteps && ` (from steps ${step.fromSteps.map(s => numberMap.get(s)).join(", ")})`}
