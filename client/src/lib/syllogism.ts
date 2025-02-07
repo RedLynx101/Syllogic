@@ -15,6 +15,66 @@ const normalizeTerm = (term: string): string => {
   return nonCount % 2 === 0 ? baseTerm : `non-${baseTerm}`;
 };
 
+// Helper to normalize a premise
+const normalizePremise = (premise: Premise): Premise => ({
+  ...premise,
+  subject: normalizeTerm(premise.subject),
+  predicate: normalizeTerm(premise.predicate),
+});
+
+// Given a premise, return all 4 equivalent forms
+const getEquivalents = (premise: Premise): Premise[] => {
+  const norm = normalizePremise(premise);
+  switch (norm.form) {
+    case "A":
+      return [
+        // Original: All p are q
+        norm,
+        // Obverse: No p are non-q
+        { ...norm, form: "E", predicate: `non-${norm.predicate}` },
+        // Contrapositive: All non-q are non-p
+        { ...norm, subject: `non-${norm.predicate}`, predicate: `non-${norm.subject}`, form: "A" },
+        // Obverse of contrapositive: No non-q are p
+        { ...norm, subject: `non-${norm.predicate}`, predicate: norm.subject, form: "E" },
+      ].map(normalizePremise);
+    case "E":
+      return [
+        // Original: No p are q
+        norm,
+        // Obverse: All p are non-q
+        { ...norm, form: "A", predicate: `non-${norm.predicate}` },
+        // Converse: No q are p
+        { ...norm, subject: norm.predicate, predicate: norm.subject, form: "E" },
+        // Obverse of converse: All q are non-p
+        { ...norm, subject: norm.predicate, predicate: `non-${norm.subject}`, form: "A" },
+      ].map(normalizePremise);
+    case "I":
+      return [
+        // Original: Some p are q
+        norm,
+        // Obverse: Some p are not non-q
+        { ...norm, form: "O", predicate: `non-${norm.predicate}` },
+        // Converse: Some q are p
+        { ...norm, subject: norm.predicate, predicate: norm.subject, form: "I" },
+        // Obverse of converse: Some q are not non-p
+        { ...norm, subject: norm.predicate, predicate: `non-${norm.subject}`, form: "O" },
+      ].map(normalizePremise);
+    case "O":
+      return [
+        // Original: Some p are not q
+        norm,
+        // Obverse: Some p are non-q
+        { ...norm, form: "I", predicate: `non-${norm.predicate}` },
+        // Contrapositive: Some non-q are p
+        { ...norm, subject: `non-${norm.predicate}`, predicate: norm.subject, form: "O" },
+        // Obverse of contrapositive: Some non-q are non-p
+        { ...norm, subject: `non-${norm.predicate}`, predicate: `non-${norm.subject}`, form: "I" },
+      ].map(normalizePremise);
+    default:
+      return [norm];
+  }
+};
+
 // Helper to check if a premise is in a specific form
 const isPremiseForm = (premise: Premise, form: PremiseForm) =>
   premise.form === form;
@@ -40,180 +100,89 @@ const premisesEqual = (p1: Premise, p2: Premise): boolean => {
   return directEqual || iConversionEqual;
 };
 
-// Helper to normalize a premise
-const normalizePremise = (premise: Premise): Premise => ({
-  ...premise,
-  subject: normalizeTerm(premise.subject),
-  predicate: normalizeTerm(premise.predicate),
-});
-
-// NEW: For E statements, generate alternate forms
-const alternateEForms = (premise: Premise): Premise[] => {
-  const normalized = normalizePremise(premise);
-  if (normalized.form === "E") {
-    return [
-      normalized,
-      normalizePremise({ ...normalized, subject: `non-${normalized.subject}` }),
-    ];
-  }
-  return [normalized];
-};
-
-// Apply obversion rules
-const applyObversion = (premise: Premise): Premise => {
-  const normalized = normalizePremise(premise);
-  let newPremise;
-  switch (normalized.form) {
-    case "A":
-      newPremise = {
-        ...normalized,
-        form: "E",
-        predicate: `non-${normalized.predicate}`,
-      };
-      break;
-    case "E":
-      newPremise = {
-        ...normalized,
-        form: "A",
-        predicate: `non-${normalized.predicate}`,
-      };
-      break;
-    case "I":
-      newPremise = {
-        ...normalized,
-        form: "O",
-        predicate: `non-${normalized.predicate}`,
-      };
-      break;
-    case "O":
-      newPremise = {
-        ...normalized,
-        form: "I",
-        predicate: `non-${normalized.predicate}`,
-      };
-      break;
-    default:
-      newPremise = normalized;
-  }
-  return normalizePremise(newPremise);
-};
-
-// Apply conversion rules for E and I statements
-const applyConversion = (premise: Premise): Premise | null => {
-  if (isPremiseForm(premise, "E") || isPremiseForm(premise, "I")) {
-    const normalized = normalizePremise(premise);
-    const newPremise = {
-      ...normalized,
-      subject: normalized.predicate,
-      predicate: normalized.subject,
-    };
-    return normalizePremise(newPremise);
+// Updated check for Barbara that uses equivalents
+const checkBarbaraWithEquivalents = (p1: Premise, p2: Premise): Premise | null => {
+  const equiv1 = getEquivalents(p1);
+  const equiv2 = getEquivalents(p2);
+  for (const e1 of equiv1) {
+    for (const e2 of equiv2) {
+      if (e1.form === "A" && e2.form === "A" && e1.predicate === e2.subject) {
+        return normalizePremise({
+          form: "A",
+          subject: e1.subject,
+          predicate: e2.predicate,
+        });
+      }
+    }
   }
   return null;
 };
 
-// Apply contraposition rules for A and O statements
-const applyContraposition = (premise: Premise): Premise | null => {
-  if (isPremiseForm(premise, "A") || isPremiseForm(premise, "O")) {
-    const normalized = normalizePremise(premise);
-    const newPremise = {
-      ...normalized,
-      subject: `non-${normalized.predicate}`,
-      predicate: `non-${normalized.subject}`,
-    };
-    return normalizePremise(newPremise);
+// Updated check for Darii that uses equivalents
+const checkDariiWithEquivalents = (p1: Premise, p2: Premise): Premise | null => {
+  const equiv1 = getEquivalents(p1);
+  const equiv2 = getEquivalents(p2);
+  for (const e1 of equiv1) {
+    for (const e2 of equiv2) {
+      if (
+        e1.form === "A" &&
+        e2.form === "I" &&
+        e1.subject === e2.subject
+      ) {
+        return normalizePremise({
+          form: "I",
+          subject: e2.predicate,
+          predicate: e1.predicate,
+        });
+      }
+      if (
+        e2.form === "A" &&
+        e1.form === "I" &&
+        e2.subject === e1.subject
+      ) {
+        return normalizePremise({
+          form: "I",
+          subject: e1.predicate,
+          predicate: e2.predicate,
+        });
+      }
+    }
   }
-  return null;
-};
-
-// Check if Barbara syllogism is applicable
-const checkBarbara = (p1: Premise, p2: Premise): Premise | null => {
-  const n1 = normalizePremise(p1);
-  const n2 = normalizePremise(p2);
-  if (
-    isPremiseForm(n1, "A") &&
-    isPremiseForm(n2, "A") &&
-    n1.predicate === n2.subject
-  ) {
-    return normalizePremise({
-      form: "A",
-      subject: n1.subject,
-      predicate: n2.predicate,
-    });
-  }
-  return null;
-};
-
-// Check if Darii syllogism is applicable
-const checkDarii = (p1: Premise, p2: Premise): Premise | null => {
-  const n1 = normalizePremise(p1);
-  const n2 = normalizePremise(p2);
-
-  // Try: n1 is A and n2 is I and they share the same subject
-  if (
-    isPremiseForm(n1, "A") &&
-    isPremiseForm(n2, "I") &&
-    n1.subject === n2.subject
-  ) {
-    return normalizePremise({
-      form: "I",
-      subject: n2.predicate,
-      predicate: n1.predicate,
-    });
-  }
-
-  // Try the reverse: n2 is A and n1 is I
-  if (
-    isPremiseForm(n2, "A") &&
-    isPremiseForm(n1, "I") &&
-    n2.subject === n1.subject
-  ) {
-    return normalizePremise({
-      form: "I",
-      subject: n1.predicate,
-      predicate: n2.predicate,
-    });
-  }
-
   return null;
 };
 
 const MAX_STEPS = 500;
 const MAX_TERM_LENGTH = 100;
 
+// Updated isPremiseSeen to check all equivalent forms
+const isPremiseSeen = (premise: Premise, seenPremises: Set<string>): boolean => {
+  const equivalents = getEquivalents(premise);
+  for (const eq of equivalents) {
+    const eqStr = `${eq.form}:${eq.subject}:${eq.predicate}`;
+    if (seenPremises.has(eqStr)) return true;
+  }
+  for (const eq of equivalents) {
+    seenPremises.add(`${eq.form}:${eq.subject}:${eq.predicate}`);
+  }
+  return false;
+};
+
 export const evaluateSyllogism = (argument: Argument): Proof => {
   const steps: ProofStep[] = [];
   const seenPremises = new Set<string>();
   let stepNumber = 1;
 
-  // Track which steps were used to derive the conclusion
+  // Track which steps were used in deriving the conclusion
   const usedSteps = new Set<number>();
 
-  const isPremiseSeen = (premise: Premise): boolean => {
-    const normalized = normalizePremise(premise);
-    const premiseStr = `${normalized.form}:${normalized.subject}:${normalized.predicate}`;
-    if (seenPremises.has(premiseStr)) return true;
-
-    if (
-      normalized.subject.length > MAX_TERM_LENGTH ||
-      normalized.predicate.length > MAX_TERM_LENGTH
-    ) {
-      return true;
-    }
-
-    seenPremises.add(premiseStr);
-    return false;
-  };
-
-  // When adding initial premises, if an E-statement, add alternate forms
+  // Add initial premises (and for each, add all equivalents to our seen set)
   argument.premises.forEach((premise) => {
-    const alternatives =
-      premise.form === "E" ? alternateEForms(premise) : [normalizePremise(premise)];
-    alternatives.forEach((altPremise) => {
-      if (!isPremiseSeen(altPremise)) {
+    const equivalents = getEquivalents(premise);
+    equivalents.forEach((eq) => {
+      if (!isPremiseSeen(eq, seenPremises)) {
         steps.push({
           number: stepNumber++,
-          premise: altPremise,
+          premise: eq,
           rule: "Premise",
         });
       }
@@ -230,24 +199,23 @@ export const evaluateSyllogism = (argument: Argument): Proof => {
 
   const normalizedConclusion = normalizePremise(argument.conclusion);
 
-  // Helper to track steps used in deriving a conclusion
+  // Helper to mark steps as used
   const markStepsAsUsed = (step: ProofStep) => {
     usedSteps.add(step.number);
     if (step.fromSteps) {
-      step.fromSteps.forEach((fromStep) => {
-        usedSteps.add(fromStep);
-        // Recursively mark steps that led to the fromSteps
-        steps.filter((s) => s.number === fromStep).forEach(markStepsAsUsed);
+      step.fromSteps.forEach((num) => {
+        usedSteps.add(num);
+        steps.filter((s) => s.number === num).forEach(markStepsAsUsed);
       });
     }
   };
 
-  const conclusionFound = () => {
-    const foundStep = steps.find((step) =>
-      premisesEqual(step.premise, normalizedConclusion),
-    );
-    if (foundStep) {
-      markStepsAsUsed(foundStep);
+  const conclusionFound = (): boolean => {
+    const found = steps.find((s) => {
+      return premisesEqual(s.premise, normalizedConclusion);
+    });
+    if (found) {
+      markStepsAsUsed(found);
       return true;
     }
     return false;
@@ -257,8 +225,9 @@ export const evaluateSyllogism = (argument: Argument): Proof => {
     if (conclusionFound()) break;
 
     for (let j = i + 1; j < steps.length && stepNumber <= MAX_STEPS; j++) {
-      const barbara = checkBarbara(steps[i].premise, steps[j].premise);
-      if (barbara && !isPremiseSeen(barbara)) {
+      // Try Barbara using equivalent forms
+      const barbara = checkBarbaraWithEquivalents(steps[i].premise, steps[j].premise);
+      if (barbara && !isPremiseSeen(barbara, seenPremises)) {
         steps.push({
           number: stepNumber++,
           premise: barbara,
@@ -267,8 +236,9 @@ export const evaluateSyllogism = (argument: Argument): Proof => {
         });
       }
 
-      const darii = checkDarii(steps[i].premise, steps[j].premise);
-      if (darii && !isPremiseSeen(darii)) {
+      // Try Darii using equivalent forms
+      const darii = checkDariiWithEquivalents(steps[i].premise, steps[j].premise);
+      if (darii && !isPremiseSeen(darii, seenPremises)) {
         steps.push({
           number: stepNumber++,
           premise: darii,
@@ -280,45 +250,13 @@ export const evaluateSyllogism = (argument: Argument): Proof => {
       if (conclusionFound()) break;
     }
 
-    // Try single premise rules
-    const obversion = applyObversion(steps[i].premise);
-    if (obversion && !isPremiseSeen(obversion)) {
-      steps.push({
-        number: stepNumber++,
-        premise: obversion,
-        rule: "Obversion",
-        fromSteps: [steps[i].number],
-      });
-    }
-
-    const conversion = applyConversion(steps[i].premise);
-    if (conversion && !isPremiseSeen(conversion)) {
-      steps.push({
-        number: stepNumber++,
-        premise: conversion,
-        rule: "Conversion",
-        fromSteps: [steps[i].number],
-      });
-    }
-
-    const contraposition = applyContraposition(steps[i].premise);
-    if (contraposition && !isPremiseSeen(contraposition)) {
-      steps.push({
-        number: stepNumber++,
-        premise: contraposition,
-        rule: "Contraposition",
-        fromSteps: [steps[i].number],
-      });
-    }
-
     if (conclusionFound()) break;
   }
 
   const isValid = conclusionFound();
 
-  // For valid proofs, only include steps that were used to derive the conclusion
   const finalSteps = isValid
-    ? steps.filter((step) => usedSteps.has(step.number))
+    ? steps.filter((s) => usedSteps.has(s.number))
     : steps;
 
   return {
