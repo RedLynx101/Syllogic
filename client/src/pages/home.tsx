@@ -49,7 +49,7 @@ export default function Home() {
   };
 
   return (
-    <div className="container max-w-4xl py-8 space-y-8">
+    <div className="container max-w-4xl mx-auto py-8 space-y-8"> {/* Added mx-auto for centering */}
       <div className="text-center space-y-2">
         <h1 className="text-4xl font-bold tracking-tight">Syllogic</h1>
         <p className="text-muted-foreground">
@@ -70,7 +70,7 @@ export default function Home() {
               onRemove={() => removePremise(index)}
             />
           ))}
-          
+
           {premises.length < 50 && (
             <Button
               variant="outline"
