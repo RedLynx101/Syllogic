@@ -13,10 +13,25 @@ const normalizeTerm = (term: string): string => {
 const isPremiseForm = (premise: Premise, form: PremiseForm) => premise.form === form;
 
 // Helper to check if two premises are equal
-const premisesEqual = (p1: Premise, p2: Premise) =>
-  p1.form === p2.form &&
-  normalizeTerm(p1.subject) === normalizeTerm(p2.subject) &&
-  normalizeTerm(p1.predicate) === normalizeTerm(p2.predicate);
+const premisesEqual = (p1: Premise, p2: Premise): boolean => {
+  const n1 = normalizePremise(p1);
+  const n2 = normalizePremise(p2);
+
+  // Direct equality check
+  const directEqual = 
+    n1.form === n2.form &&
+    n1.subject === n2.subject &&
+    n1.predicate === n2.predicate;
+
+  // For I statements, check conversion equality as well
+  const iConversionEqual =
+    n1.form === "I" &&
+    n2.form === "I" &&
+    n1.subject === n2.predicate &&
+    n1.predicate === n2.subject;
+
+  return directEqual || iConversionEqual;
+};
 
 // Helper to normalize a premise
 const normalizePremise = (premise: Premise): Premise => ({
@@ -81,11 +96,14 @@ const checkBarbara = (p1: Premise, p2: Premise): Premise | null => {
 const checkDarii = (p1: Premise, p2: Premise): Premise | null => {
   const n1 = normalizePremise(p1);
   const n2 = normalizePremise(p2);
-  if (isPremiseForm(n1, "A") && isPremiseForm(n2, "I") && n1.predicate === n2.subject) {
+  // Check that p1 is A and p2 is I and they share the same middle term (subject)
+  if (isPremiseForm(n1, "A") && isPremiseForm(n2, "I") && n1.subject === n2.subject) {
+    // Construct conclusion: Some S are P, where S comes from the I-premise's predicate
+    // and P comes from the A-premise's predicate
     return {
       form: "I",
-      subject: n1.subject,     // Use subject from the A-premise
-      predicate: n2.predicate, // Use predicate from the I-premise
+      subject: n2.predicate,   // S (minor term)
+      predicate: n1.predicate, // P (major term)
     };
   }
   return null;
