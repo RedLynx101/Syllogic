@@ -226,37 +226,68 @@ export const evaluateSyllogism = (argument: Argument): Proof => {
     return false;
   };
 
-  for (let i = 0; i < steps.length && stepNumber <= MAX_STEPS; i++) {
-    if (conclusionFound()) break;
+  // Helper to try deriving new conclusions from a pair of premises
+  const tryDerivingNewConclusions = (p1Index: number, p2Index: number) => {
+    const newConclusions: { premise: Premise; rule: string; fromSteps: number[] }[] = [];
 
-    for (let j = i + 1; j < steps.length && stepNumber <= MAX_STEPS; j++) {
-      // Try Barbara using equivalent forms
-      const barbara = checkBarbaraWithEquivalents(steps[i].premise, steps[j].premise);
-      if (barbara && !isPremiseSeen(barbara, seenPremises)) {
-        steps.push({
-          number: stepNumber++,
-          premise: barbara,
-          rule: "Barbara",
-          fromSteps: [steps[i].number, steps[j].number],
-        });
-      }
+    // Try Barbara
+    const barbara = checkBarbaraWithEquivalents(steps[p1Index].premise, steps[p2Index].premise);
+    if (barbara && !isPremiseSeen(barbara, seenPremises)) {
+      newConclusions.push({
+        premise: barbara,
+        rule: "Barbara",
+        fromSteps: [steps[p1Index].number, steps[p2Index].number],
+      });
+    }
 
-      // Try Darii using equivalent forms
-      const darii = checkDariiWithEquivalents(steps[i].premise, steps[j].premise);
-      if (darii && !isPremiseSeen(darii, seenPremises)) {
-        steps.push({
-          number: stepNumber++,
-          premise: darii,
-          rule: "Darii",
-          fromSteps: [steps[i].number, steps[j].number],
-        });
+    // Try Darii
+    const darii = checkDariiWithEquivalents(steps[p1Index].premise, steps[p2Index].premise);
+    if (darii && !isPremiseSeen(darii, seenPremises)) {
+      newConclusions.push({
+        premise: darii,
+        rule: "Darii",
+        fromSteps: [steps[p1Index].number, steps[p2Index].number],
+      });
+    }
+
+    return newConclusions;
+  };
+
+  let lastCheckedIndex = 0;
+  let madeProgress;
+
+  do {
+    madeProgress = false;
+    const currentLength = steps.length;
+
+    // Try all pairs of existing steps
+    for (let i = 0; i < currentLength; i++) {
+      if (conclusionFound()) break;
+
+      for (let j = i + 1; j < currentLength; j++) {
+        const newConclusions = tryDerivingNewConclusions(i, j);
+
+        for (const conclusion of newConclusions) {
+          steps.push({
+            number: stepNumber++,
+            ...conclusion
+          });
+          madeProgress = true;
+
+          // Check if this new conclusion leads directly to the target conclusion
+          if (conclusionFound()) break;
+        }
+
+        if (conclusionFound()) break;
       }
 
       if (conclusionFound()) break;
     }
 
-    if (conclusionFound()) break;
-  }
+    // If we've made progress (added new conclusions), we need to check these
+    // new conclusions against all existing premises in the next iteration
+    lastCheckedIndex = currentLength;
+  } while (madeProgress && stepNumber <= MAX_STEPS);
 
   const isValid = conclusionFound();
   const finalSteps = isValid
