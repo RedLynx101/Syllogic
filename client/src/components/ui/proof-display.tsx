@@ -42,7 +42,7 @@ export function ProofDisplay({ steps, isValid, explanation }: ProofDisplayProps)
          step.rule !== "Conversion")
     );
   
-  // Create a mapping of old step numbers to new sequential numbers based on visible steps
+  // Create a mapping of old step numbers to new sequential numbers
   const numberMap = new Map(visibleSteps.map((step, index) => [step.number, index + 1]));
 
   return (
@@ -72,7 +72,7 @@ export function ProofDisplay({ steps, isValid, explanation }: ProofDisplayProps)
       <div className="space-y-2">
         {visibleSteps.map((step, index) => (
           <div key={step.number} className="flex items-start gap-4 p-2 rounded-lg hover:bg-accent">
-            <span className="font-mono w-8">{numberMap.get(step.number)}.</span>
+            <span className="font-mono w-8">{index + 1}.</span>
             <div className="flex-1">
               {step.transforms && step.transforms.length > 0 ? (
                 <TooltipProvider>
@@ -100,7 +100,7 @@ export function ProofDisplay({ steps, isValid, explanation }: ProofDisplayProps)
               )}
               <div className="text-sm text-muted-foreground">
                 {step.rule}
-                {step.fromSteps && ` (from steps ${step.fromSteps.map(s => numberMap.get(s)).join(", ")})`}
+                {step.fromSteps && step.fromSteps.length > 0 && ` (from steps ${step.fromSteps.map(s => numberMap.get(s)).filter(Boolean).join(", ")})`}
               </div>
             </div>
           </div>
