@@ -18,11 +18,18 @@ export const premiseSchema = z.object({
   predicate: z.string(),
 });
 
+export const transformationSchema = z.object({
+  type: z.enum(["original", "obverse", "contrapositive", "converse"]),
+  premise: premiseSchema
+});
+
 export const proofStepSchema = z.object({
   number: z.number(),
   premise: premiseSchema,
   rule: z.string(),
   fromSteps: z.array(z.number()).optional(),
+  transformation: transformationSchema.optional(),
+  intermediateSteps: z.array(transformationSchema).optional()
 });
 
 export const argumentSchema = z.object({
