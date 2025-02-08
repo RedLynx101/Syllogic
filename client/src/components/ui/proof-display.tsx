@@ -33,17 +33,6 @@ export function ProofDisplay({ steps, isValid, explanation }: ProofDisplayProps)
         <p className="text-muted-foreground">{explanation}</p>
       )}
 
-      <div className="mb-4">
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={toggleImplicit}
-          className="w-full sm:w-auto"
-        >
-          {showImplicit ? "Hide" : "Show"} Implicit Steps
-        </Button>
-      </div>
-
       <div className="space-y-2">
         {visibleSteps.map((step, index) => (
           <div key={step.number} className="flex items-start gap-4 p-2 rounded-lg hover:bg-accent">
