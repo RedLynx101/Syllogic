@@ -17,6 +17,76 @@ import Layout from "@/components/layout";
 // Create auth context for app-wide authentication state
 interface AuthContextType {
   isAuthenticated: boolean;
+  setIsAuthenticated: (value: boolean) => void;
+  isLoading: boolean;
+}
+
+const AuthContext = createContext<AuthContextType>({
+  isAuthenticated: false,
+  setIsAuthenticated: () => {},
+  isLoading: true
+});
+
+export function App() {
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [location] = useLocation();
+
+  // Check auth status on mount and when location changes
+  useEffect(() => {
+    api.get("/api/auth/me")
+      .then(() => {
+        setIsAuthenticated(true);
+        authEvents.notify(true);
+      })
+      .catch(() => {
+        setIsAuthenticated(false);
+        authEvents.notify(false);
+      })
+      .finally(() => setIsLoading(false));
+  }, [location]);
+
+  return (
+    <QueryClientProvider client={queryClient}>
+      <AuthContext.Provider value={{ isAuthenticated, setIsAuthenticated, isLoading }}>
+        <ErrorBoundary
+          fallback={
+            <div className="container py-8 text-center">
+              <h2 className="text-2xl font-bold mb-4">Something went wrong</h2>
+              <Button 
+                onClick={() => window.location.reload()}
+                variant="outline"
+              >
+                Try again
+              </Button>
+            </div>
+          }
+        >
+          <Layout>
+            <Switch>
+              <Route path="/" component={Home} />
+              <Route path="/register" component={Register} />
+              <Route path="/login" component={Login} />
+              <Route path="/dashboard" component={Dashboard} />
+              <Route component={NotFound} />
+            </Switch>
+          </Layout>
+        </ErrorBoundary>
+      </AuthContext.Provider>
+      <Toaster />
+      <SonnerToaster position="top-center" />
+    </QueryClientProvider>
+  );
+}
+
+export default App;
+
+// Hook to use auth context
+export function useAuth() {
+  return useContext(AuthContext);
+}
+interface AuthContextType {
+  isAuthenticated: boolean;
   user: any | null;
   loading: boolean;
 }
