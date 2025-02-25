@@ -26,9 +26,7 @@ const sessionConfig = {
     ? new PgSession({
         createTableIfMissing: true,
         // Connect to Neon serverless Postgres
-        pool: createClient({
-          connectionString: process.env.DATABASE_URL,
-        }),
+        pool: neon(process.env.DATABASE_URL),
       })
     : new session.MemoryStore(), // Use memory store in development
   secret: process.env.SESSION_SECRET || 'syllogism-secret-key',
@@ -61,14 +59,14 @@ app.use((req, res, next) => {
     const duration = Date.now() - start;
     if (path.startsWith("/api")) {
       let logLine = `${req.method} ${path} ${res.statusCode} in ${duration}ms`;
-      
+
       // Don't log full response body for security and clarity
       if (capturedJsonResponse) {
         // Sanitize sensitive data from logs
         const sanitized = { ...capturedJsonResponse };
         if (sanitized.user?.email) sanitized.user.email = '***@***.***';
         if (sanitized.passwordHash) delete sanitized.passwordHash;
-        
+
         // Truncate long response bodies
         const jsonStr = JSON.stringify(sanitized);
         logLine += jsonStr.length > 50 ? ` :: ${jsonStr.slice(0, 50)}...` : ` :: ${jsonStr}`;
@@ -93,13 +91,13 @@ app.use((req, res, next) => {
   // Global error handler middleware
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
     console.error('Server error:', err);
-    
+
     // Don't expose internal errors to clients
     const status = err.status || err.statusCode || 500;
     const message = status === 500 
       ? 'Internal Server Error' 
       : err.message || 'Something went wrong';
-    
+
     // Send appropriate error response
     if (!res.headersSent) {
       res.status(status).json({ error: message });
