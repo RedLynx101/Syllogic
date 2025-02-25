@@ -48,7 +48,7 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     <div className="flex flex-col min-h-screen">
       {/* Header */}
       <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-        <div className="container flex h-14 items-center justify-between">
+        <div className="container flex h-14 items-center justify-between mx-auto px-4">
           <div className="flex items-center gap-2 md:gap-4">
             {/* Mobile menu */}
             <Sheet>
@@ -178,13 +178,13 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
       </header>
 
       {/* Main content */}
-      <main className="flex-1 container py-6">
+      <main className="flex-1 container py-6 mx-auto px-4">
         {children}
       </main>
 
       {/* Footer */}
       <footer className="border-t py-6 md:py-0">
-        <div className="container flex flex-col md:flex-row items-center justify-between gap-4 md:h-14">
+        <div className="container flex flex-col md:flex-row items-center justify-between gap-4 md:h-14 mx-auto px-4">
           <p className="text-sm text-muted-foreground">
             © 2025 Syllogic. All rights reserved.
           </p>

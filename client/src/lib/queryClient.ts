@@ -64,9 +64,12 @@ export async function apiRequest<T = any>(
   try {
     const res = await fetch(apiUrl, {
       method,
-      headers: data ? { "Content-Type": "application/json" } : {},
+      headers: {
+        ...(data ? { "Content-Type": "application/json" } : {}),
+        // Add any custom headers here
+      },
       body: data ? JSON.stringify(data) : undefined,
-      credentials: "include",
+      credentials: "include", // Always include credentials for cookies
     });
 
     // Handle unsuccessful responses

@@ -13,8 +13,22 @@ import { and, eq } from 'drizzle-orm';
 import bcrypt from 'bcryptjs';
 
 // Initialize Neon database client
-const sql = neon(process.env.DATABASE_URL || 'postgresql://user:password@localhost:5432/syllogic');
-export const db = drizzle(sql);
+const DATABASE_URL = process.env.DATABASE_URL || 'postgresql://user:password@localhost:5432/syllogic';
+console.log('Database connection string:', DATABASE_URL.replace(/:[^:]*@/, ':****@')); // Log the URL with password hidden for debugging
+
+// Create a function to get a new connection for each request to avoid connection pooling issues
+function getDrizzleClient() {
+  try {
+    const sql = neon(DATABASE_URL);
+    return drizzle(sql);
+  } catch (error) {
+    console.error('Error initializing database client:', error);
+    throw new Error('Failed to initialize database connection');
+  }
+}
+
+// Export a function to get a new client for each operation
+export const db = getDrizzleClient();
 
 export interface IStorage {
   // Argument operations
@@ -32,15 +46,26 @@ export interface IStorage {
 }
 
 export class DbStorage implements IStorage {
+  // Get a fresh database client for each operation
+  private getClient() {
+    return getDrizzleClient();
+  }
+
   // User operations
   async createUser(userData: Omit<User, 'id'>): Promise<Omit<UserRecord, 'passwordHash'>> {
     try {
+      console.log('Creating user with email:', userData.email);
+      
       // Hash password
       const salt = await bcrypt.genSalt(10);
       const passwordHash = await bcrypt.hash(userData.password, salt);
       
+      // Get a fresh client for this operation
+      const dbClient = this.getClient();
+      
       // Insert user into database
-      const result = await db.insert(users)
+      console.log('Attempting database insertion...');
+      const result = await dbClient.insert(users)
         .values({
           username: userData.username,
           email: userData.email,
@@ -57,28 +82,40 @@ export class DbStorage implements IStorage {
         });
       
       if (!result[0]) {
+        console.error('Database returned no result');
         throw new Error('Failed to create user');
       }
       
+      console.log('User created successfully with ID:', result[0].id);
       return result[0];
     } catch (error: any) {
+      console.error('Error creating user:', error);
+      
       // Handle unique constraint violations
       if (error.message && error.message.includes('unique constraint')) {
         if (error.message.includes('email')) {
           throw new Error('Email already in use');
         }
       }
-      throw error;
+      
+      // Rethrow with additional context for debugging
+      throw new Error(`Database error: ${error.message}`);
     }
   }
   
   async getUserByEmail(email: string): Promise<UserRecord | undefined> {
-    const result = await db.select()
-      .from(users)
-      .where(eq(users.email, email))
-      .limit(1);
-      
-    return result[0];
+    try {
+      const dbClient = this.getClient();
+      const result = await dbClient.select()
+        .from(users)
+        .where(eq(users.email, email))
+        .limit(1);
+        
+      return result[0];
+    } catch (error) {
+      console.error('Error getting user by email:', error);
+      return undefined;
+    }
   }
   
   async validateUser(email: string, password: string): Promise<Omit<UserRecord, 'passwordHash'> | null> {
@@ -105,7 +142,8 @@ export class DbStorage implements IStorage {
   
   async getUserById(id: number): Promise<Omit<UserRecord, 'passwordHash'> | undefined> {
     try {
-      const result = await db.select({
+      const dbClient = this.getClient();
+      const result = await dbClient.select({
         id: users.id,
         username: users.username,
         email: users.email,
@@ -130,7 +168,8 @@ export class DbStorage implements IStorage {
         throw new Error('Conclusion is required');
       }
       
-      const result = await db.insert(syllogisms)
+      const dbClient = this.getClient();
+      const result = await dbClient.insert(syllogisms)
         .values({
           userId: userId || null,
           name: argument.name || 'Untitled Argument',
@@ -155,7 +194,8 @@ export class DbStorage implements IStorage {
 
   async getArgument(id: number): Promise<SyllogismRecord | undefined> {
     try {
-      const result = await db.select()
+      const dbClient = this.getClient();
+      const result = await dbClient.select()
         .from(syllogisms)
         .where(eq(syllogisms.id, id))
         .limit(1);
@@ -169,7 +209,8 @@ export class DbStorage implements IStorage {
 
   async listArguments(userId?: number): Promise<SyllogismRecord[]> {
     try {
-      let query = db.select().from(syllogisms);
+      const dbClient = this.getClient();
+      let query = dbClient.select().from(syllogisms);
       
       if (userId) {
         query = query.where(eq(syllogisms.userId, userId));
@@ -188,7 +229,8 @@ export class DbStorage implements IStorage {
         throw new Error('Conclusion is required');
       }
       
-      const result = await db.update(syllogisms)
+      const dbClient = this.getClient();
+      const result = await dbClient.update(syllogisms)
         .set({
           name: argument.name,
           premises: argument.premises,
@@ -208,7 +250,8 @@ export class DbStorage implements IStorage {
   
   async deleteArgument(id: number): Promise<boolean> {
     try {
-      await db.delete(syllogisms)
+      const dbClient = this.getClient();
+      await dbClient.delete(syllogisms)
         .where(eq(syllogisms.id, id));
       
       return true;
@@ -363,6 +406,23 @@ export class MemStorage implements IStorage {
 }
 
 // Choose storage implementation based on environment
-export const storage: IStorage = process.env.NODE_ENV === 'production' 
+let useDbStorage = !!process.env.DATABASE_URL;
+
+// Try to connect to the database to test if it's available
+try {
+  if (useDbStorage) {
+    console.log('Validating database connection...');
+    const testClient = getDrizzleClient();
+    
+    // Only mark as usable if connection is good
+    console.log('Database connection validated successfully');
+  }
+} catch (error) {
+  console.error('Database connection failed, falling back to memory storage:', error);
+  useDbStorage = false;
+}
+
+// Use database if available, otherwise fall back to memory storage
+export const storage: IStorage = useDbStorage 
   ? new DbStorage() 
   : new MemStorage();

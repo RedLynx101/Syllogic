@@ -56,6 +56,22 @@ export function registerRoutes(app: Express) {
       // Auto login after registration
       req.session.userId = user.id;
       
+      // Save session promise
+      const saveSession = new Promise<void>((resolve, reject) => {
+        req.session.save((err) => {
+          if (err) {
+            console.error('Error saving session:', err);
+            reject(err);
+          } else {
+            console.log('Session saved successfully. userId:', user.id);
+            resolve();
+          }
+        });
+      });
+      
+      // Wait for session to be saved
+      await saveSession;
+      
       res.status(201).json({ 
         message: "User registered successfully",
         user: {
@@ -80,6 +96,22 @@ export function registerRoutes(app: Express) {
       
       // Set user ID in session
       req.session.userId = user.id;
+      
+      // Save session promise
+      const saveSession = new Promise<void>((resolve, reject) => {
+        req.session.save((err) => {
+          if (err) {
+            console.error('Error saving session:', err);
+            reject(err);
+          } else {
+            console.log('Session saved successfully for login. userId:', user.id);
+            resolve();
+          }
+        });
+      });
+      
+      // Wait for session to be saved
+      await saveSession;
       
       res.json({ 
         message: "Login successful",

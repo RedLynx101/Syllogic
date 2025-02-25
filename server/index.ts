@@ -20,23 +20,18 @@ app.use(cors({
 }));
 
 // Session configuration
-const PgSession = connectPgSimple(session);
+// For now, always use memory store until Neon compatibility is resolved
 const sessionConfig = {
-  store: process.env.NODE_ENV === 'production'
-    ? new PgSession({
-        createTableIfMissing: true,
-        // Connect to Neon serverless Postgres
-        pool: neon(process.env.DATABASE_URL),
-      })
-    : new session.MemoryStore(), // Use memory store in development
+  store: new session.MemoryStore(), // Use memory store for session data
   secret: process.env.SESSION_SECRET || 'syllogism-secret-key',
   resave: false,
   saveUninitialized: false,
   cookie: {
-    secure: process.env.NODE_ENV === 'production',
+    // In development, don't require HTTPS
+    secure: false,
     httpOnly: true,
     maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
-    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+    sameSite: 'lax',
   }
 };
 
@@ -85,6 +80,11 @@ app.use((req, res, next) => {
 
 // Initialize the application
 (async () => {
+  // Log environment details for debugging
+  console.log(`Node environment: ${process.env.NODE_ENV || 'development'}`);
+  console.log(`Database URL set: ${process.env.DATABASE_URL ? 'Yes' : 'No'}`);
+  console.log(`Using storage implementation: ${process.env.DATABASE_URL ? 'Database' : 'Memory'}`);
+  
   // Register routes and create HTTP server
   const server = registerRoutes(app);
 
