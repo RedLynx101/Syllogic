@@ -18,9 +18,7 @@ console.log('Database connection string:', DATABASE_URL.replace(/:[^:]*@/, ':***
 const getDrizzleClient = () => {
   try {
     const sql = neon(DATABASE_URL);
-    // Create a proper SQL connection
-    const client = sql();
-    return drizzle(client, { logger: true });
+    return drizzle(sql, { logger: true });
   } catch (error) {
     console.error('Error creating database client:', error);
     throw new Error('Failed to initialize database connection');
