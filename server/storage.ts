@@ -16,11 +16,13 @@ import bcrypt from 'bcryptjs';
 const DATABASE_URL = process.env.DATABASE_URL || 'postgresql://user:password@localhost:5432/syllogic';
 console.log('Database connection string:', DATABASE_URL.replace(/:[^:]*@/, ':****@')); // Log the URL with password hidden for debugging
 
-// Create a function to get a new connection for each request to avoid connection pooling issues
+// Create a function to get a new connection for each request
 function getDrizzleClient() {
   try {
     const sql = neon(DATABASE_URL);
-    return drizzle(sql);
+    // Create a prepared statement executor
+    const client = drizzle(sql);
+    return client;
   } catch (error) {
     console.error('Error initializing database client:', error);
     throw new Error('Failed to initialize database connection');
