@@ -166,8 +166,8 @@ export function registerRoutes(app: Express) {
   app.get("/api/user/arguments", authenticateUser, async (req, res, next) => {
     try {
       const userId = (req as any).user.id;
-      const arguments = await storage.listArguments(userId);
-      res.json(arguments);
+      const userArguments = await storage.listArguments(userId);
+      res.json(userArguments);
     } catch (error) {
       next(error);
     }
