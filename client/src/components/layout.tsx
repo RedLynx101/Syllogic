@@ -71,6 +71,9 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
                       <Link href="/dashboard">
                         <Button variant="ghost" className="w-full justify-start">Dashboard</Button>
                       </Link>
+                      <Link href="/history">
+                        <Button variant="ghost" className="w-full justify-start">History</Button>
+                      </Link>
                       <Button
                         variant="ghost"
                         className="w-full justify-start"
@@ -106,11 +109,18 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
                 </span>
               </Link>
               {isAuthenticated && (
-                <Link href="/dashboard">
-                  <span className="transition-colors hover:text-foreground/80">
-                    Dashboard
-                  </span>
-                </Link>
+                <>
+                  <Link href="/dashboard">
+                    <span className="transition-colors hover:text-foreground/80">
+                      Dashboard
+                    </span>
+                  </Link>
+                  <Link href="/history">
+                    <span className="transition-colors hover:text-foreground/80">
+                      History
+                    </span>
+                  </Link>
+                </>
               )}
             </nav>
           </div>
