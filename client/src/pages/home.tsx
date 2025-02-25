@@ -12,6 +12,16 @@ import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useLocation, useSearch } from "wouter";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 const defaultPremise = (): Premise => ({
   form: PremiseForm.A,
@@ -32,11 +42,19 @@ export default function Home() {
   const [proof, setProof] = useState<Proof | null>(null);
   const [name, setName] = useState<string>("");
   const [argumentLoaded, setArgumentLoaded] = useState<boolean>(false);
+  const [showOverwriteDialog, setShowOverwriteDialog] = useState<boolean>(false);
+  const [pendingArgument, setPendingArgument] = useState<any>(null);
   
   // Fetch existing argument if ID provided
   const { data: existingArgument, isLoading: loadingArgument } = useQuery({
     queryKey: [argumentId ? `/api/arguments/${argumentId}` : null],
     enabled: !!argumentId,
+  });
+  
+  // Fetch user's arguments to check for duplicates
+  const { data: userArguments } = useQuery({
+    queryKey: [isAuthenticated ? "/api/user/arguments" : null],
+    enabled: isAuthenticated,
   });
 
   // Load argument data
@@ -63,19 +81,15 @@ export default function Home() {
       
       const validConclusion = conclusion.subject.trim() !== "" && conclusion.predicate.trim() !== "";
       
+      // Don't automatically save - just evaluate
       return await api.post("/api/evaluate", {
-        name: name.trim() !== "" ? name : "Untitled Argument",
         premises: validPremises,
         conclusion: validConclusion ? conclusion : undefined,
       });
     },
     onSuccess: (data) => {
       setProof(data.proof);
-      if (data.savedArgument && !argumentId) {
-        // Navigate to the saved argument
-        setLocation(`/?id=${data.savedArgument.id}`);
-        toast.success("Argument saved successfully");
-      }
+      // Remove auto-navigation to new argument
     },
     onError: (error) => {
       if (error instanceof Error) {
@@ -180,10 +194,46 @@ export default function Home() {
     if (validateFields()) {
       if (!proof) {
         handleEvaluate();
+        toast.info("Please evaluate your argument before saving");
+        return;
+      }
+      
+      // Check for duplicate names
+      const argumentName = name.trim() !== "" ? name : "Untitled Argument";
+      const existingWithSameName = userArguments?.find(
+        arg => arg.name === argumentName && arg.id !== argumentId
+      );
+      
+      if (existingWithSameName) {
+        // Store argument data temporarily
+        setPendingArgument({
+          name: argumentName,
+          premises,
+          conclusion,
+        });
+        
+        // Show confirmation dialog
+        setShowOverwriteDialog(true);
       } else {
+        // No duplicate, proceed with save
         saveMutation.mutate();
       }
     }
+  };
+  
+  const confirmOverwrite = () => {
+    // Close dialog
+    setShowOverwriteDialog(false);
+    
+    // Proceed with save
+    if (pendingArgument) {
+      saveMutation.mutate();
+    }
+  };
+  
+  const cancelOverwrite = () => {
+    setShowOverwriteDialog(false);
+    setPendingArgument(null);
   };
 
   // Display loading state while fetching argument
@@ -200,6 +250,24 @@ export default function Home() {
 
   return (
     <div className="space-y-6">
+      {/* Overwrite Confirmation Dialog */}
+      <AlertDialog open={showOverwriteDialog} onOpenChange={setShowOverwriteDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Overwrite Existing Argument?</AlertDialogTitle>
+            <AlertDialogDescription>
+              An argument with the name "{pendingArgument?.name}" already exists.
+              Do you want to save this argument anyway? The existing argument will remain
+              but this might cause confusion with duplicate names.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={cancelOverwrite}>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmOverwrite}>Save Anyway</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+      
       <div className="flex flex-col lg:flex-row justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">
