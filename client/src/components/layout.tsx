@@ -45,10 +45,10 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   };
 
   return (
-    <div className="flex flex-col min-h-screen w-full">
+    <div className="flex flex-col min-h-screen">
       {/* Header */}
       <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-        <div className="container mx-auto flex h-14 items-center justify-between px-4">
+        <div className="container flex h-14 items-center justify-between">
           <div className="flex items-center gap-2 md:gap-4">
             {/* Mobile menu */}
             <Sheet>
@@ -66,16 +66,7 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
                   <Link href="/">
                     <Button variant="ghost" className="w-full justify-start">Home</Button>
                   </Link>
-                  {!isAuthenticated ? (
-                    <>
-                      <Link href="/login">
-                        <Button variant="ghost" className="w-full justify-start">Log in</Button>
-                      </Link>
-                      <Link href="/register">
-                        <Button variant="ghost" className="w-full justify-start">Sign up</Button>
-                      </Link>
-                    </>
-                  ) : (
+                  {isAuthenticated ? (
                     <>
                       <Link href="/dashboard">
                         <Button variant="ghost" className="w-full justify-start">Dashboard</Button>
@@ -126,16 +117,7 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 
           {/* Auth buttons */}
           <div className="flex items-center gap-2">
-            {!isAuthenticated ? (
-              <>
-                <Link href="/login">
-                  <Button variant="ghost">Log in</Button>
-                </Link>
-                <Link href="/register">
-                  <Button>Sign up</Button>
-                </Link>
-              </>
-            ) : (
+            {isAuthenticated ? (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button
