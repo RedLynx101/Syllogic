@@ -36,7 +36,7 @@ export interface IStorage {
 
 export class DbStorage implements IStorage {
   private getClient() {
-    return getDrizzleClient();
+    return db;
   }
 
   async createUser(userData: Omit<User, 'id'>): Promise<Omit<UserRecord, 'passwordHash'>> {
