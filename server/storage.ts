@@ -324,13 +324,13 @@ export class MemStorage implements IStorage {
   }
 
   async listArguments(userId?: number): Promise<SyllogismRecord[]> {
-    let arguments = Array.from(this.syllogisms.values());
+    let userArguments = Array.from(this.syllogisms.values());
     
     if (userId) {
-      arguments = arguments.filter(arg => arg.userId === userId);
+      userArguments = userArguments.filter(arg => arg.userId === userId);
     }
     
-    return arguments.sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime());
+    return userArguments.sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime());
   }
   
   async updateArgument(id: number, argument: Argument, proof: Proof): Promise<SyllogismRecord | undefined> {
