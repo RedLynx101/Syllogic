@@ -19,9 +19,9 @@ console.log('Database connection string:', DATABASE_URL.replace(/:[^:]*@/, ':***
 // Create a function to get a new connection for each request
 function getDrizzleClient() {
   try {
+    // Create a SQL connection with the pool
     const sql = neon(DATABASE_URL);
-    // Create a prepared statement executor
-    const client = drizzle(sql);
+    const client = drizzle(sql, { schema: { users, syllogisms } });
     return client;
   } catch (error) {
     console.error('Error initializing database client:', error);
