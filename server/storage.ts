@@ -17,7 +17,7 @@ console.log('Database connection string:', DATABASE_URL.replace(/:[^:]*@/, ':***
 
 // Create a single SQL client instance
 const sql = neon(DATABASE_URL);
-const db = drizzle(sql);
+const db = drizzle(sql, { logger: true });
 
 // Export the initialized client
 export { db };
