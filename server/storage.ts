@@ -18,14 +18,18 @@ console.log('Database connection string:', DATABASE_URL.replace(/:[^:]*@/, ':***
 const getDrizzleClient = () => {
   try {
     const sql = neon(DATABASE_URL);
-    return drizzle(sql);
+    return drizzle(sql, { logger: true });
   } catch (error) {
     console.error('Error creating database client:', error);
     throw new Error('Failed to initialize database connection');
   }
 };
 
-export const db = getDrizzleClient();
+// Initialize the client once and reuse it
+const db = getDrizzleClient();
+
+// Export the initialized client
+export { db };
 
 export interface IStorage {
   saveArgument(argument: Argument, proof: Proof, userId?: number): Promise<SyllogismRecord>;
