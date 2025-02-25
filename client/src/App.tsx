@@ -14,77 +14,6 @@ import Login from "@/pages/auth/login";
 import Dashboard from "@/pages/dashboard";
 import Layout from "@/components/layout";
 
-// Create auth context for app-wide authentication state
-interface AuthContextType {
-  isAuthenticated: boolean;
-  setIsAuthenticated: (value: boolean) => void;
-  isLoading: boolean;
-}
-
-const AuthContext = createContext<AuthContextType>({
-  isAuthenticated: false,
-  setIsAuthenticated: () => {},
-  isLoading: true
-});
-
-export function App() {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
-  const [location] = useLocation();
-
-  // Check auth status on mount and when location changes
-  useEffect(() => {
-    api.get("/api/auth/me")
-      .then(() => {
-        setIsAuthenticated(true);
-        authEvents.notify(true);
-      })
-      .catch(() => {
-        setIsAuthenticated(false);
-        authEvents.notify(false);
-      })
-      .finally(() => setIsLoading(false));
-  }, [location]);
-
-  return (
-    <QueryClientProvider client={queryClient}>
-      <AuthContext.Provider value={{ isAuthenticated, setIsAuthenticated, isLoading }}>
-        <ErrorBoundary
-          fallback={
-            <div className="container py-8 text-center">
-              <h2 className="text-2xl font-bold mb-4">Something went wrong</h2>
-              <Button 
-                onClick={() => window.location.reload()}
-                variant="outline"
-              >
-                Try again
-              </Button>
-            </div>
-          }
-        >
-          <Layout>
-            <Switch>
-              <Route path="/" component={Home} />
-              <Route path="/register" component={Register} />
-              <Route path="/login" component={Login} />
-              <Route path="/dashboard" component={Dashboard} />
-              <Route component={NotFound} />
-            </Switch>
-          </Layout>
-        </ErrorBoundary>
-      </AuthContext.Provider>
-      <Toaster />
-      <SonnerToaster position="top-center" />
-    </QueryClientProvider>
-  );
-}
-
-export default App;
-
-// Hook to use auth context
-export function useAuth() {
-  return useContext(AuthContext);
-}
 interface AuthContextType {
   isAuthenticated: boolean;
   user: any | null;
@@ -99,18 +28,34 @@ const AuthContext = createContext<AuthContextType>({
 
 export const useAuth = () => useContext(AuthContext);
 
-// Authentication provider component
+function LoadingScreen() {
+  return (
+    <div className="flex items-center justify-center h-screen">
+      <Loader2 className="animate-spin" />
+    </div>
+  );
+}
+
+function ErrorFallback({ error, resetErrorBoundary }: { error: Error; resetErrorBoundary: () => void }) {
+  return (
+    <div className="container py-8 text-center">
+      <h2 className="text-2xl font-bold mb-4">Something went wrong</h2>
+      <Button onClick={resetErrorBoundary} variant="outline">
+        Try again
+      </Button>
+    </div>
+  );
+}
+
 function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
   const [user, setUser] = useState<any | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
-  const [, setLocation] = useLocation();
 
-  // Check authentication status on mount
   useEffect(() => {
     const checkAuth = async () => {
       try {
-        const userData = await api.auth.me();
+        const userData = await api.get("/api/auth/me");
         setUser(userData.user);
         setIsAuthenticated(true);
       } catch (error) {
@@ -123,7 +68,6 @@ function AuthProvider({ children }: { children: React.ReactNode }) {
 
     checkAuth();
 
-    // Listen for auth events
     const unsubscribe = authEvents.subscribe((authenticated) => {
       setIsAuthenticated(authenticated);
       if (!authenticated) {
@@ -141,52 +85,6 @@ function AuthProvider({ children }: { children: React.ReactNode }) {
   );
 }
 
-// Error fallback component
-function ErrorFallback({ error, resetErrorBoundary }: any) {
-  return (
-    <div className="flex flex-col items-center justify-center min-h-screen p-4 text-center">
-      <h2 className="text-2xl font-bold text-red-600 mb-4">
-        Something went wrong
-      </h2>
-      <p className="mb-4 max-w-md text-gray-700">
-        {error.message || "An unexpected error occurred"}
-      </p>
-      <Button onClick={resetErrorBoundary}>Try again</Button>
-    </div>
-  );
-}
-
-// Loading screen
-function LoadingScreen() {
-  return (
-    <div className="flex items-center justify-center min-h-screen">
-      <div className="flex flex-col items-center gap-2">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-        <p className="text-sm text-muted-foreground">Loading...</p>
-      </div>
-    </div>
-  );
-}
-
-// Protected route component
-function ProtectedRoute({ component: Component }: { component: React.ComponentType }) {
-  const { isAuthenticated, loading } = useAuth();
-  const [, setLocation] = useLocation();
-
-  useEffect(() => {
-    if (!loading && !isAuthenticated) {
-      setLocation("/login");
-    }
-  }, [isAuthenticated, loading, setLocation]);
-
-  if (loading) {
-    return <LoadingScreen />;
-  }
-
-  return isAuthenticated ? <Component /> : null;
-}
-
-// Public route that redirects authenticated users
 function AuthRoute({ component: Component }: { component: React.ComponentType }) {
   const { isAuthenticated, loading } = useAuth();
   const [, setLocation] = useLocation();
@@ -202,6 +100,23 @@ function AuthRoute({ component: Component }: { component: React.ComponentType })
   }
 
   return !isAuthenticated ? <Component /> : null;
+}
+
+function ProtectedRoute({ component: Component }: { component: React.ComponentType }) {
+  const { isAuthenticated, loading } = useAuth();
+  const [, setLocation] = useLocation();
+
+  useEffect(() => {
+    if (!loading && !isAuthenticated) {
+      setLocation("/login");
+    }
+  }, [isAuthenticated, loading, setLocation]);
+
+  if (loading) {
+    return <LoadingScreen />;
+  }
+
+  return isAuthenticated ? <Component /> : null;
 }
 
 function Router() {
