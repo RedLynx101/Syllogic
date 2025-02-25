@@ -22,9 +22,6 @@ const db = drizzle(sql);
 // Export the initialized client
 export { db };
 
-// Export the initialized client
-export { db };
-
 export interface IStorage {
   saveArgument(argument: Argument, proof: Proof, userId?: number): Promise<SyllogismRecord>;
   getArgument(id: number): Promise<SyllogismRecord | undefined>;
