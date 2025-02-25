@@ -50,8 +50,12 @@ export function registerRoutes(app: Express) {
   // Auth routes
   app.post("/api/auth/register", async (req, res, next) => {
     try {
+      console.log('Registration request received');
       const userData = userSchema.parse(req.body);
+      console.log('User data validated');
+      
       const user = await storage.createUser(userData);
+      console.log('User created with ID:', user.id);
       
       // Auto login after registration
       req.session.userId = user.id;
@@ -81,6 +85,7 @@ export function registerRoutes(app: Express) {
         }
       });
     } catch (error) {
+      console.error('Registration error:', error);
       next(error);
     }
   });

@@ -16,20 +16,21 @@ import bcrypt from 'bcryptjs';
 const DATABASE_URL = process.env.DATABASE_URL || 'postgresql://user:password@localhost:5432/syllogic';
 console.log('Database connection string:', DATABASE_URL.replace(/:[^:]*@/, ':****@')); // Log the URL with password hidden for debugging
 
-// Create a function to get a new connection for each request
-function getDrizzleClient() {
+// Create a function to get a fresh client for each operation
+// This approach helps avoid connection issues with serverless environments
+const getDrizzleClient = () => {
   try {
-    // Create a SQL connection with the pool
+    // Create a SQL connection
     const sql = neon(DATABASE_URL);
-    const client = drizzle(sql, { schema: { users, syllogisms } });
-    return client;
+    // Initialize Drizzle with that connection
+    return drizzle(sql);
   } catch (error) {
-    console.error('Error initializing database client:', error);
+    console.error('Error creating database client:', error);
     throw new Error('Failed to initialize database connection');
   }
-}
+};
 
-// Export a function to get a new client for each operation
+// Export the initial client, but each operation should get a fresh client
 export const db = getDrizzleClient();
 
 export interface IStorage {
@@ -264,7 +265,7 @@ export class DbStorage implements IStorage {
   }
 }
 
-// Fallback to in-memory storage for development
+// Reliable in-memory storage implementation
 export class MemStorage implements IStorage {
   private syllogisms: Map<number, SyllogismRecord>;
   private users: Map<number, UserRecord>;
@@ -272,20 +273,34 @@ export class MemStorage implements IStorage {
   private currentId: { syllogism: number; user: number };
 
   constructor() {
+    console.log('Initializing MemStorage');
     this.syllogisms = new Map();
     this.users = new Map();
     this.userEmails = new Map();
     this.currentId = { syllogism: 1, user: 1 };
   }
 
+  // Helper method to debug storage state
+  private logStorageState() {
+    console.log(`Current storage state: 
+    - Users: ${this.users.size} 
+    - Arguments: ${this.syllogisms.size}
+    - Next ID: user=${this.currentId.user}, syllogism=${this.currentId.syllogism}`);
+  }
+
   // User operations
   async createUser(userData: Omit<User, 'id'>): Promise<Omit<UserRecord, 'passwordHash'>> {
+    console.log(`MemStorage: Creating user with email ${userData.email}`);
+    
     // Check if email already exists
     if (this.userEmails.has(userData.email)) {
+      console.log('Email already in use');
       throw new Error('Email already in use');
     }
     
     const id = this.currentId.user++;
+    console.log(`Assigned user ID: ${id}`);
+    
     const salt = await bcrypt.genSalt(10);
     const passwordHash = await bcrypt.hash(userData.password, salt);
     
@@ -302,40 +317,58 @@ export class MemStorage implements IStorage {
     this.users.set(id, user);
     this.userEmails.set(userData.email, id);
     
+    console.log(`User created successfully with ID: ${id}`);
+    this.logStorageState();
+    
     const { passwordHash: _, ...userWithoutPassword } = user;
     return userWithoutPassword;
   }
   
   async getUserByEmail(email: string): Promise<UserRecord | undefined> {
+    console.log(`Looking up user by email: ${email}`);
     const userId = this.userEmails.get(email);
-    if (!userId) return undefined;
-    return this.users.get(userId);
+    
+    if (!userId) {
+      console.log('User not found with that email');
+      return undefined;
+    }
+    
+    const user = this.users.get(userId);
+    console.log(`Found user with ID: ${userId}`);
+    return user;
   }
   
   async validateUser(email: string, password: string): Promise<Omit<UserRecord, 'passwordHash'> | null> {
+    console.log(`Validating user with email: ${email}`);
     const user = await this.getUserByEmail(email);
     
     if (!user) {
+      console.log('User not found during validation');
       return null;
     }
     
     const isValid = await bcrypt.compare(password, user.passwordHash);
     
     if (!isValid) {
+      console.log('Invalid password');
       return null;
     }
     
+    console.log('User validated successfully');
     const { passwordHash, ...userWithoutPassword } = user;
     return userWithoutPassword;
   }
   
   async getUserById(id: number): Promise<Omit<UserRecord, 'passwordHash'> | undefined> {
+    console.log(`Looking up user by ID: ${id}`);
     const user = this.users.get(id);
     
     if (!user) {
+      console.log(`User with ID ${id} not found`);
       return undefined;
     }
     
+    console.log(`Found user: ${user.username}`);
     const { passwordHash, ...userWithoutPassword } = user;
     return userWithoutPassword;
   }
@@ -407,24 +440,7 @@ export class MemStorage implements IStorage {
   }
 }
 
-// Choose storage implementation based on environment
-let useDbStorage = !!process.env.DATABASE_URL;
-
-// Try to connect to the database to test if it's available
-try {
-  if (useDbStorage) {
-    console.log('Validating database connection...');
-    const testClient = getDrizzleClient();
-    
-    // Only mark as usable if connection is good
-    console.log('Database connection validated successfully');
-  }
-} catch (error) {
-  console.error('Database connection failed, falling back to memory storage:', error);
-  useDbStorage = false;
-}
-
-// Use database if available, otherwise fall back to memory storage
-export const storage: IStorage = useDbStorage 
-  ? new DbStorage() 
-  : new MemStorage();
+// For this test version, always use memory storage until we can debug the Neon issue
+console.log('*** IMPORTANT: Using memory storage implementation (not database) ***');
+console.log('*** User data will be lost when server restarts - not saved to Neon ***');
+export const storage: IStorage = new MemStorage();

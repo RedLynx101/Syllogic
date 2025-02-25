@@ -83,7 +83,7 @@ app.use((req, res, next) => {
   // Log environment details for debugging
   console.log(`Node environment: ${process.env.NODE_ENV || 'development'}`);
   console.log(`Database URL set: ${process.env.DATABASE_URL ? 'Yes' : 'No'}`);
-  console.log(`Using storage implementation: ${process.env.DATABASE_URL ? 'Database' : 'Memory'}`);
+  console.log(`Using temporary in-memory storage for reliability`);
   
   // Register routes and create HTTP server
   const server = registerRoutes(app);
