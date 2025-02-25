@@ -8,7 +8,7 @@ import {
   users
 } from "@shared/schema";
 import { neon } from '@neondatabase/serverless';
-import { drizzle } from 'drizzle-orm/neon-serverless';
+import { drizzle } from 'drizzle-orm/neon-http';
 import { and, eq } from 'drizzle-orm';
 import bcrypt from 'bcryptjs';
 
@@ -16,8 +16,8 @@ const DATABASE_URL = process.env.DATABASE_URL || 'postgresql://user:password@loc
 console.log('Database connection string:', DATABASE_URL.replace(/:[^:]*@/, ':****@'));
 
 // Create a single SQL client instance
-const sql = neon(DATABASE_URL);
-const db = drizzle(sql);
+const client = neon(DATABASE_URL);
+const db = drizzle(client);
 
 // Export the initialized client
 export { db };

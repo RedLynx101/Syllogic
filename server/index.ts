@@ -20,9 +20,16 @@ app.use(cors({
 }));
 
 // Session configuration
-// For now, always use memory store until Neon compatibility is resolved
+const PgSession = connectPgSimple(session);
+
+// Setup database connection for session store
+const DATABASE_URL = process.env.DATABASE_URL || 'postgresql://user:password@localhost:5432/syllogic';
+
 const sessionConfig = {
-  store: new session.MemoryStore(), // Use memory store for session data
+  store: new PgSession({
+    conString: DATABASE_URL,
+    createTableIfMissing: true,
+  }),
   secret: process.env.SESSION_SECRET || 'syllogism-secret-key',
   resave: false,
   saveUninitialized: false,
@@ -83,7 +90,7 @@ app.use((req, res, next) => {
   // Log environment details for debugging
   console.log(`Node environment: ${process.env.NODE_ENV || 'development'}`);
   console.log(`Database URL set: ${process.env.DATABASE_URL ? 'Yes' : 'No'}`);
-  console.log(`Using temporary in-memory storage for reliability`);
+  console.log(`Using PostgreSQL database for sessions and data storage`);
   
   // Register routes and create HTTP server
   const server = registerRoutes(app);
