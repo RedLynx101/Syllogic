@@ -172,7 +172,7 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
                 </DropdownMenuContent>
               </DropdownMenu>
             ) : (
-              <div className="hidden md:flex items-center gap-2">
+              <div className="flex items-center gap-2"> {/* Removed hidden md:flex */}
                 <Link href="/login">
                   <Button variant="ghost" size="sm">
                     Log in
