@@ -242,7 +242,7 @@ export const evaluateSyllogism = (argument: Argument): Proof => {
     const p1 = steps[p1Index].premise;
     const p2 = steps[p2Index].premise;
 
-    // Try all equivalent forms for Barbara
+    // Try Barbara: All M are P, All S are M -> All S are P
     const equiv1 = getEquivalents(p1);
     const equiv2 = getEquivalents(p2);
 
@@ -252,8 +252,8 @@ export const evaluateSyllogism = (argument: Argument): Proof => {
             e1.premise.predicate === e2.premise.subject) {
           const conclusion = normalizePremise({
             form: "A",
-            subject: e1.premise.subject,
-            predicate: e2.premise.predicate,
+            subject: e2.premise.subject,
+            predicate: e1.premise.predicate,
           });
 
           if (!isPremiseSeen(conclusion, seenPremises)) {
@@ -268,11 +268,34 @@ export const evaluateSyllogism = (argument: Argument): Proof => {
       }
     }
 
-    // Similarly for Darii
+    // Try Barbara in the other direction: All M are P, All S are M -> All S are P
+    for (const e1 of equiv1) {
+      for (const e2 of equiv2) {
+        if (e1.premise.form === "A" && e2.premise.form === "A" && 
+            e1.premise.subject === e2.premise.predicate) {
+          const conclusion = normalizePremise({
+            form: "A",
+            subject: e2.premise.subject,
+            predicate: e1.premise.predicate,
+          });
+
+          if (!isPremiseSeen(conclusion, seenPremises)) {
+            results.push({
+              premise: conclusion,
+              rule: "Barbara",
+              fromSteps: [p1Index + 1, p2Index + 1],
+              transforms: [...e1.transforms, ...e2.transforms]
+            });
+          }
+        }
+      }
+    }
+
+    // Darii: All M are P, Some S are M -> Some S are P
     for (const e1 of equiv1) {
       for (const e2 of equiv2) {
         if (e1.premise.form === "A" && e2.premise.form === "I" &&
-            e1.premise.subject === e2.premise.subject) {
+            e1.premise.subject === e2.premise.predicate) {
           const conclusion = normalizePremise({
             form: "I",
             subject: e2.premise.subject,
@@ -300,11 +323,17 @@ export const evaluateSyllogism = (argument: Argument): Proof => {
     madeProgress = false;
     const currentLength = steps.length;
 
+    // Check if we've already found the conclusion
+    const conclusionFound = steps.some(step => premisesEqual(step.premise, normalizedConclusion));
+    if (conclusionFound) {
+      break;
+    }
+
     for (let i = 0; i < currentLength && stepNumber <= MAX_STEPS; i++) {
-      if (premisesEqual(steps[i].premise, normalizedConclusion)) {
-        // Found a matching conclusion - add transformation steps if needed
+      // Try to directly derive conclusion from premises first
+      if (i < argument.premises.length) {
         const transformPath = findTransformPath(steps[i].premise, normalizedConclusion);
-        if (transformPath) {
+        if (transformPath && transformPath.length > 0) {
           let lastStep = steps[i].number;
           transformPath.forEach(transform => {
             steps.push({
@@ -314,56 +343,88 @@ export const evaluateSyllogism = (argument: Argument): Proof => {
               fromSteps: [lastStep],
             });
             lastStep = stepNumber - 1;
+            usedSteps.add(lastStep);
           });
+          usedSteps.add(steps[i].number);
+          madeProgress = true;
+          break;
         }
-
-        // Mark all steps in the path
-        let current = steps.length - 1;
-        while (current >= 0) {
-          usedSteps.add(steps[current].number);
-          if (steps[current].fromSteps) {
-            steps[current].fromSteps.forEach(step => {
-              usedSteps.add(step);
-            });
-          }
-          current--;
-        }
-        break;
       }
 
-      for (let j = i + 1; j < currentLength && stepNumber <= MAX_STEPS; j++) {
+      for (let j = 0; j < currentLength && stepNumber <= MAX_STEPS; j++) {
+        if (i === j) continue;
+        
         const newConclusions = tryDerivingNewConclusions(i, j);
 
         for (const conclusion of newConclusions) {
-          // Add any necessary transformation steps first
-          if (conclusion.transforms && conclusion.transforms.length > 0) {
-            conclusion.transforms.forEach(transform => {
-              steps.push({
-                number: stepNumber++,
-                premise: transform.result,
-                rule: transform.rule,
-                fromSteps: [conclusion.fromSteps[conclusion.transforms!.indexOf(transform)]],
-              });
+          // Check if this derives the conclusion we're looking for
+          const directDerivation = premisesEqual(conclusion.premise, normalizedConclusion);
+          
+          // If we found the conclusion directly through Barbara or another rule
+          if (directDerivation) {
+            // Add the step that directly derives the conclusion
+            steps.push({
+              number: stepNumber++,
+              premise: normalizedConclusion, // Use the exact conclusion format
+              rule: conclusion.rule,
+              fromSteps: conclusion.fromSteps,
             });
+            
+            // Mark used steps
+            usedSteps.add(stepNumber - 1);
+            conclusion.fromSteps.forEach(step => usedSteps.add(step));
+            
+            madeProgress = true;
+            break;
+          } else {
+            // Just add the derived conclusion as usual
+            steps.push({
+              number: stepNumber++,
+              premise: conclusion.premise,
+              rule: conclusion.rule,
+              fromSteps: conclusion.fromSteps,
+            });
+            madeProgress = true;
           }
-
-          // Then add the derived conclusion
-          steps.push({
-            number: stepNumber++,
-            premise: conclusion.premise,
-            rule: conclusion.rule,
-            fromSteps: conclusion.fromSteps,
-          });
-
-          madeProgress = true;
         }
+        
+        if (steps.some(step => premisesEqual(step.premise, normalizedConclusion))) {
+          break;
+        }
+      }
+      
+      if (steps.some(step => premisesEqual(step.premise, normalizedConclusion))) {
+        break;
       }
     }
   } while (madeProgress && stepNumber <= MAX_STEPS);
 
-  const isValid = steps.some(step => premisesEqual(step.premise, normalizedConclusion));
+  // Find the step containing the conclusion
+  const conclusionStep = steps.findIndex(step => premisesEqual(step.premise, normalizedConclusion));
+  
+  if (conclusionStep >= 0) {
+    // Add the step to used steps
+    usedSteps.add(steps[conclusionStep].number);
+    
+    // Add all referenced steps recursively
+    const addReferencedSteps = (stepNumber: number) => {
+      const step = steps.find(s => s.number === stepNumber);
+      if (step && step.fromSteps) {
+        step.fromSteps.forEach(fromStep => {
+          usedSteps.add(fromStep);
+          addReferencedSteps(fromStep);
+        });
+      }
+    };
+    
+    addReferencedSteps(steps[conclusionStep].number);
+  }
+
+  const isValid = conclusionStep >= 0;
+  
+  // Filter to only include the original premises and steps used to derive the conclusion
   const finalSteps = isValid
-    ? steps.filter(step => usedSteps.has(step.number))
+    ? steps.filter(step => usedSteps.has(step.number) || step.rule === "Premise")
     : steps;
 
   return {

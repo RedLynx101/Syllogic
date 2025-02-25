@@ -19,6 +19,9 @@ interface ProofDisplayProps {
 export function ProofDisplay({ steps, isValid, explanation }: ProofDisplayProps) {
   // Create a mapping of step numbers to display numbers
   const numberMap = new Map(steps.map((step, index) => [step.number, index + 1]));
+  
+  // Sort steps to ensure consistent sequential ordering
+  const sortedSteps = [...steps].sort((a, b) => numberMap.get(a.number)! - numberMap.get(b.number)!);
 
   return (
     <div className="space-y-4">
@@ -34,7 +37,7 @@ export function ProofDisplay({ steps, isValid, explanation }: ProofDisplayProps)
       )}
 
       <div className="space-y-2">
-        {steps.map((step, index) => (
+        {sortedSteps.map((step, index) => (
           <div key={step.number} className="flex items-start gap-4 p-2 rounded-lg hover:bg-accent">
             <span className="font-mono w-8">{index + 1}.</span>
             <div className="flex-1">
