@@ -22,9 +22,10 @@ const defaultPremise = (): Premise => ({
 export default function Home() {
   const { isAuthenticated } = useAuth();
   const [, setLocation] = useLocation();
-  const search = useSearch();
-  const argumentId = search.get("id") ? parseInt(search.get("id") as string) : null;
-  const isEditMode = search.get("edit") === "true";
+  const [search] = useSearch();
+  const params = new URLSearchParams(search);
+  const argumentId = params.get("id") ? parseInt(params.get("id")) : null;
+  const isEditMode = params.get("edit") === "true";
 
   const [premises, setPremises] = useState<Premise[]>([defaultPremise(), defaultPremise()]);
   const [conclusion, setConclusion] = useState<Premise>(defaultPremise());
