@@ -1,44 +1,62 @@
 import express, { type Request, Response, NextFunction } from "express";
 import session from "express-session";
-import { neon } from '@neondatabase/serverless';
 import connectPgSimple from "connect-pg-simple";
 import cors from "cors";
+import { randomBytes } from "crypto";
+import { pool } from "./db";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
+
+const isProduction = process.env.NODE_ENV === "production";
+const PORT = Number(process.env.PORT) || 5000;
+
+// Session secret: required in production; a random per-process secret in development
+// (dev sessions are invalidated whenever the server restarts).
+function resolveSessionSecret(): string {
+  const secret = process.env.SESSION_SECRET;
+  if (secret) return secret;
+  if (isProduction) {
+    throw new Error("SESSION_SECRET must be set when NODE_ENV=production");
+  }
+  console.warn("SESSION_SECRET is not set; using a random per-process secret for development.");
+  return randomBytes(32).toString("hex");
+}
 
 // Initialize Express app
 const app = express();
 
+// Behind an HTTPS-terminating proxy in production, trust it so secure cookies are issued.
+if (isProduction) {
+  app.set("trust proxy", 1);
+}
+
 // Setup middlewares
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
+// The client is served from the same origin as the API, so production allows no
+// cross-origin callers; development allows the local dev server origin only.
 app.use(cors({
-  origin: process.env.NODE_ENV === 'production' 
-    ? ['https://syllogic.app', 'https://www.syllogic.app'] 
-    : 'http://localhost:5000',
+  origin: isProduction ? false : `http://localhost:${PORT}`,
   credentials: true
 }));
 
-// Session configuration
+// Session configuration (sessions are stored in PostgreSQL)
 const PgSession = connectPgSimple(session);
 
-// Setup database connection for session store
-const DATABASE_URL = process.env.DATABASE_URL || 'postgresql://user:password@localhost:5432/syllogic';
-
-const sessionConfig = {
+const sessionConfig: session.SessionOptions = {
   store: new PgSession({
-    conString: DATABASE_URL,
+    pool,
     createTableIfMissing: true,
   }),
-  secret: process.env.SESSION_SECRET || 'syllogism-secret-key',
+  secret: resolveSessionSecret(),
   resave: false,
   saveUninitialized: false,
   cookie: {
-    // In development, don't require HTTPS
-    secure: false,
+    // HTTPS-only cookies in production; plain HTTP allowed for local development
+    secure: isProduction,
     httpOnly: true,
     maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
-    sameSite: 'lax',
+    sameSite: "lax",
   }
 };
 
@@ -89,7 +107,6 @@ app.use((req, res, next) => {
 (async () => {
   // Log environment details for debugging
   console.log(`Node environment: ${process.env.NODE_ENV || 'development'}`);
-  console.log(`Database URL set: ${process.env.DATABASE_URL ? 'Yes' : 'No'}`);
   console.log(`Using PostgreSQL database for sessions and data storage`);
   
   // Register routes and create HTTP server
@@ -119,7 +136,6 @@ app.use((req, res, next) => {
   }
 
   // Start the server
-  const PORT = process.env.PORT || 5000;
   server.listen(PORT, "0.0.0.0", () => {
     log(`Server running on port ${PORT} in ${app.get('env')} mode`);
   });

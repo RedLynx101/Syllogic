@@ -1,16 +1,12 @@
-
-import { drizzle } from 'drizzle-orm/neon-http';
-import { neon } from '@neondatabase/serverless';
-import * as schema from '../shared/schema';
-
-const client = neon(process.env.DATABASE_URL!);
-const db = drizzle(client, { schema });
+// Manual table bootstrap. `npm run db:push` (drizzle-kit) is the preferred way to
+// create the schema; this script remains for environments without drizzle-kit.
+import { pool } from './db';
 
 async function main() {
   console.log('Running migrations...');
-  
+
   // Create users table
-  await client.query(`
+  await pool.query(`
     CREATE TABLE IF NOT EXISTS users (
       id SERIAL PRIMARY KEY,
       username VARCHAR(50) NOT NULL,
@@ -22,7 +18,7 @@ async function main() {
   `);
 
   // Create syllogisms table
-  await client.query(`
+  await pool.query(`
     CREATE TABLE IF NOT EXISTS syllogisms (
       id SERIAL PRIMARY KEY,
       user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
@@ -39,5 +35,8 @@ async function main() {
 }
 
 main()
-  .catch(console.error)
-  .finally(() => process.exit());
+  .catch((error) => {
+    console.error(error);
+    process.exitCode = 1;
+  })
+  .finally(() => pool.end());

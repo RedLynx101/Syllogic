@@ -7,19 +7,11 @@ import {
   syllogisms,
   users
 } from "@shared/schema";
-import { neon } from '@neondatabase/serverless';
-import { drizzle } from 'drizzle-orm/neon-http';
-import { and, eq } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import bcrypt from 'bcryptjs';
+import { db } from './db';
 
-const DATABASE_URL = process.env.DATABASE_URL || 'postgresql://user:password@localhost:5432/syllogic';
-console.log('Database connection string:', DATABASE_URL.replace(/:[^:]*@/, ':****@'));
-
-// Create a single SQL client instance
-const client = neon(DATABASE_URL);
-const db = drizzle(client);
-
-// Export the initialized client
+// Re-export the shared Drizzle client (DATABASE_URL is required; see server/db.ts)
 export { db };
 
 export interface IStorage {
@@ -136,7 +128,7 @@ export class DbStorage implements IStorage {
 
   async listArguments(userId?: number): Promise<SyllogismRecord[]> {
     const dbClient = this.getClient();
-    let query = dbClient.select().from(syllogisms);
+    let query = dbClient.select().from(syllogisms).$dynamic();
 
     if (userId) {
       query = query.where(eq(syllogisms.userId, userId));
