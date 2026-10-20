@@ -83,8 +83,9 @@ app.use((req, res, next) => {
       // Don't log full response body for security and clarity
       if (capturedJsonResponse) {
         // Sanitize sensitive data from logs
+        // (copy nested objects too, so the logged copy never alters the response object)
         const sanitized = { ...capturedJsonResponse };
-        if (sanitized.user?.email) sanitized.user.email = '***@***.***';
+        if (sanitized.user?.email) sanitized.user = { ...sanitized.user, email: '***@***.***' };
         if (sanitized.passwordHash) delete sanitized.passwordHash;
 
         // Truncate long response bodies

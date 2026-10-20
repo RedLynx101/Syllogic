@@ -1,37 +1,54 @@
-import { 
-  type Argument, 
-  type Proof, 
-  type SyllogismRecord, 
+import {
+  type Argument,
+  type Proof,
+  type SyllogismRecord,
   type User,
   type UserRecord,
   syllogisms,
   users
 } from "@shared/schema";
-import { eq } from 'drizzle-orm';
+import { and, desc, eq } from 'drizzle-orm';
 import bcrypt from 'bcryptjs';
 import { db } from './db';
+import { EmailInUseError } from './errors';
 
 // Re-export the shared Drizzle client (DATABASE_URL is required; see server/db.ts)
 export { db };
 
+export type SafeUser = Omit<UserRecord, 'passwordHash'>;
+
+/**
+ * Persistence for users and saved arguments.
+ *
+ * Every argument read or write after creation is scoped to an owner: callers pass the
+ * signed-in user's id, and an argument that belongs to someone else (or to nobody) is
+ * treated as missing.
+ */
 export interface IStorage {
-  saveArgument(argument: Argument, proof: Proof, userId?: number): Promise<SyllogismRecord>;
-  getArgument(id: number): Promise<SyllogismRecord | undefined>;
-  listArguments(userId?: number): Promise<SyllogismRecord[]>;
-  updateArgument(id: number, argument: Argument, proof: Proof): Promise<SyllogismRecord | undefined>;
-  deleteArgument(id: number): Promise<boolean>;
-  createUser(user: Omit<User, 'id'>): Promise<Omit<UserRecord, 'passwordHash'>>;
+  saveArgument(argument: Argument, proof: Proof, userId: number): Promise<SyllogismRecord>;
+  /** The argument with this id, only if `userId` owns it. */
+  getArgument(id: number, userId: number): Promise<SyllogismRecord | undefined>;
+  /** All arguments owned by `userId`, most recently updated first. */
+  listArguments(userId: number): Promise<SyllogismRecord[]>;
+  /** Updates the argument only if `userId` owns it; `undefined` otherwise. */
+  updateArgument(id: number, userId: number, argument: Argument, proof: Proof): Promise<SyllogismRecord | undefined>;
+  /** Deletes the argument only if `userId` owns it; `false` when nothing was deleted. */
+  deleteArgument(id: number, userId: number): Promise<boolean>;
+  createUser(user: Omit<User, 'id'>): Promise<SafeUser>;
   getUserByEmail(email: string): Promise<UserRecord | undefined>;
-  validateUser(email: string, password: string): Promise<Omit<UserRecord, 'passwordHash'> | null>;
-  getUserById(id: number): Promise<Omit<UserRecord, 'passwordHash'> | undefined>;
+  validateUser(email: string, password: string): Promise<SafeUser | null>;
+  getUserById(id: number): Promise<SafeUser | undefined>;
 }
+
+// PostgreSQL error code for a unique-constraint violation.
+const UNIQUE_VIOLATION = '23505';
 
 export class DbStorage implements IStorage {
   private getClient() {
     return db;
   }
 
-  async createUser(userData: Omit<User, 'id'>): Promise<Omit<UserRecord, 'passwordHash'>> {
+  async createUser(userData: Omit<User, 'id'>): Promise<SafeUser> {
     try {
       const salt = await bcrypt.genSalt(10);
       const passwordHash = await bcrypt.hash(userData.password, salt);
@@ -56,8 +73,8 @@ export class DbStorage implements IStorage {
       if (!result[0]) throw new Error('Failed to create user');
       return result[0];
     } catch (error: any) {
-      if (error.message?.includes('unique constraint')) {
-        throw new Error('Email already in use');
+      if (error?.code === UNIQUE_VIOLATION || error?.message?.includes('unique constraint')) {
+        throw new EmailInUseError();
       }
       throw error;
     }
@@ -69,7 +86,7 @@ export class DbStorage implements IStorage {
     return result[0];
   }
 
-  async validateUser(email: string, password: string): Promise<Omit<UserRecord, 'passwordHash'> | null> {
+  async validateUser(email: string, password: string): Promise<SafeUser | null> {
     const user = await this.getUserByEmail(email);
     if (!user) return null;
 
@@ -80,7 +97,7 @@ export class DbStorage implements IStorage {
     return userWithoutPassword;
   }
 
-  async getUserById(id: number): Promise<Omit<UserRecord, 'passwordHash'> | undefined> {
+  async getUserById(id: number): Promise<SafeUser | undefined> {
     const dbClient = this.getClient();
     const result = await dbClient.select({
       id: users.id,
@@ -96,13 +113,13 @@ export class DbStorage implements IStorage {
     return result[0];
   }
 
-  async saveArgument(argument: Argument, proof: Proof, userId?: number): Promise<SyllogismRecord> {
+  async saveArgument(argument: Argument, proof: Proof, userId: number): Promise<SyllogismRecord> {
     if (!argument.conclusion) throw new Error('Conclusion is required');
 
     const dbClient = this.getClient();
     const result = await dbClient.insert(syllogisms)
       .values({
-        userId: userId || null,
+        userId,
         name: argument.name || 'Untitled Argument',
         premises: argument.premises,
         conclusion: argument.conclusion,
@@ -116,52 +133,49 @@ export class DbStorage implements IStorage {
     return result[0];
   }
 
-  async getArgument(id: number): Promise<SyllogismRecord | undefined> {
+  async getArgument(id: number, userId: number): Promise<SyllogismRecord | undefined> {
     const dbClient = this.getClient();
     const result = await dbClient.select()
       .from(syllogisms)
-      .where(eq(syllogisms.id, id))
+      .where(and(eq(syllogisms.id, id), eq(syllogisms.userId, userId)))
       .limit(1);
 
     return result[0];
   }
 
-  async listArguments(userId?: number): Promise<SyllogismRecord[]> {
+  async listArguments(userId: number): Promise<SyllogismRecord[]> {
     const dbClient = this.getClient();
-    let query = dbClient.select().from(syllogisms).$dynamic();
-
-    if (userId) {
-      query = query.where(eq(syllogisms.userId, userId));
-    }
-
-    return await query.orderBy(syllogisms.updatedAt);
+    return await dbClient.select()
+      .from(syllogisms)
+      .where(eq(syllogisms.userId, userId))
+      .orderBy(desc(syllogisms.updatedAt), desc(syllogisms.id));
   }
 
-  async updateArgument(id: number, argument: Argument, proof: Proof): Promise<SyllogismRecord | undefined> {
+  async updateArgument(id: number, userId: number, argument: Argument, proof: Proof): Promise<SyllogismRecord | undefined> {
     if (!argument.conclusion) throw new Error('Conclusion is required');
 
     const dbClient = this.getClient();
     const result = await dbClient.update(syllogisms)
       .set({
-        name: argument.name,
+        name: argument.name || 'Untitled Argument',
         premises: argument.premises,
         conclusion: argument.conclusion,
         proof,
         updatedAt: new Date(),
       })
-      .where(eq(syllogisms.id, id))
+      .where(and(eq(syllogisms.id, id), eq(syllogisms.userId, userId)))
       .returning();
 
     return result[0];
   }
 
-  async deleteArgument(id: number): Promise<boolean> {
+  async deleteArgument(id: number, userId: number): Promise<boolean> {
     const dbClient = this.getClient();
-    await dbClient.delete(syllogisms).where(eq(syllogisms.id, id));
-    return true;
+    const deleted = await dbClient.delete(syllogisms)
+      .where(and(eq(syllogisms.id, id), eq(syllogisms.userId, userId)))
+      .returning({ id: syllogisms.id });
+    return deleted.length > 0;
   }
 }
 
-// Switch to using the database implementation
-console.log('Using PostgreSQL database for storage');
 export const storage: IStorage = new DbStorage();

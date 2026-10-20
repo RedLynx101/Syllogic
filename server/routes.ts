@@ -1,7 +1,8 @@
 import type { Express, Request, Response, NextFunction } from "express";
 import { createServer } from "http";
-import { storage } from "./storage";
-import { argumentSchema, userSchema, loginSchema } from "@shared/schema";
+import { storage, type SafeUser } from "./storage";
+import { EmailInUseError } from "./errors";
+import { argumentSchema, userSchema, loginSchema, type SyllogismRecord } from "@shared/schema";
 import { evaluateSyllogism } from "@/lib/syllogism";
 import { ZodError } from "zod";
 
@@ -11,78 +12,98 @@ declare module "express-session" {
   }
 }
 
-// Auth middleware
-const authenticateUser = async (req: Request, res: Response, next: NextFunction) => {
+type AuthedRequest = Request & { user: SafeUser };
+
+// PostgreSQL `serial` ids are 32-bit; anything outside 1..2^31-1 cannot exist.
+const MAX_ID = 2_147_483_647;
+
+/** Parses a positive integer route id ("12"), or returns null for anything else ("12abc", "1.5", "0"). */
+function parseId(raw: string): number | null {
+  if (!/^\d+$/.test(raw)) return null;
+  const id = Number(raw);
+  return id >= 1 && id <= MAX_ID ? id : null;
+}
+
+function saveSession(req: Request): Promise<void> {
+  return new Promise((resolve, reject) => {
+    req.session.save((err) => (err ? reject(err) : resolve()));
+  });
+}
+
+/** Requires a signed-in session whose user still exists; responds 401 otherwise. */
+const requireUser = async (req: Request, res: Response, next: NextFunction) => {
   const userId = req.session?.userId;
-  
+
   if (!userId) {
-    return res.status(401).json({ error: "Unauthorized" });
+    return res.status(401).json({ error: "Sign in to continue" });
   }
-  
+
   try {
     const user = await storage.getUserById(userId);
-    
+
     if (!user) {
       req.session.destroy((err) => {
         if (err) console.error('Error destroying session:', err);
       });
-      return res.status(401).json({ error: "Unauthorized" });
+      return res.status(401).json({ error: "Sign in to continue" });
     }
-    
-    // Attach user to request
-    (req as any).user = user;
+
+    (req as AuthedRequest).user = user;
     next();
   } catch (error) {
-    console.error('Authentication error:', error);
-    res.status(500).json({ error: "Internal server error" });
+    next(error);
   }
 };
 
-// Error handler
-const handleErrors = (err: Error, req: Request, res: Response, next: NextFunction) => {
-  console.error('API Error:', err);
-  
+/**
+ * Loads an argument for its owner. Storage already scopes the query to the owner; the
+ * second check keeps the route safe even if a storage implementation does not.
+ */
+async function findOwnedArgument(id: number, userId: number): Promise<SyllogismRecord | undefined> {
+  const record = await storage.getArgument(id, userId);
+  return record && record.userId === userId ? record : undefined;
+}
+
+// Someone else's argument and a missing argument get the same answer, so ids cannot be probed.
+const notFound = (res: Response) => res.status(404).json({ error: "Argument not found" });
+
+// Error handler: validation and malformed-request errors are 400; anything else is a
+// generic 500 so internal details (SQL, stack traces) never reach the client.
+const handleErrors = (err: any, _req: Request, res: Response, next: NextFunction) => {
+  if (res.headersSent) return next(err);
+
   if (err instanceof ZodError) {
-    return res.status(400).json({ 
-      error: "Validation error", 
-      details: err.errors 
+    return res.status(400).json({
+      error: "Validation error",
+      details: err.errors
     });
   }
-  
-  res.status(500).json({ error: err.message || "Internal server error" });
+
+  if (err instanceof EmailInUseError) {
+    return res.status(409).json({ error: err.message });
+  }
+
+  const status = Number(err?.status || err?.statusCode);
+  if (status >= 400 && status < 500) {
+    return res.status(status).json({ error: err.expose && err.message ? err.message : "Bad request" });
+  }
+
+  console.error('API Error:', err);
+  res.status(500).json({ error: "Internal server error" });
 };
 
 export function registerRoutes(app: Express) {
   // Auth routes
   app.post("/api/auth/register", async (req, res, next) => {
     try {
-      console.log('Registration request received');
       const userData = userSchema.parse(req.body);
-      console.log('User data validated');
-      
       const user = await storage.createUser(userData);
-      console.log('User created with ID:', user.id);
-      
-      // Auto login after registration
+
+      // Sign the new user in straight away
       req.session.userId = user.id;
-      
-      // Save session promise
-      const saveSession = new Promise<void>((resolve, reject) => {
-        req.session.save((err) => {
-          if (err) {
-            console.error('Error saving session:', err);
-            reject(err);
-          } else {
-            console.log('Session saved successfully. userId:', user.id);
-            resolve();
-          }
-        });
-      });
-      
-      // Wait for session to be saved
-      await saveSession;
-      
-      res.status(201).json({ 
+      await saveSession(req);
+
+      res.status(201).json({
         message: "User registered successfully",
         user: {
           id: user.id,
@@ -91,40 +112,23 @@ export function registerRoutes(app: Express) {
         }
       });
     } catch (error) {
-      console.error('Registration error:', error);
       next(error);
     }
   });
-  
+
   app.post("/api/auth/login", async (req, res, next) => {
     try {
       const { email, password } = loginSchema.parse(req.body);
       const user = await storage.validateUser(email, password);
-      
+
       if (!user) {
-        return res.status(401).json({ error: "Invalid credentials" });
+        return res.status(401).json({ error: "Email or password is incorrect" });
       }
-      
-      // Set user ID in session
+
       req.session.userId = user.id;
-      
-      // Save session promise
-      const saveSession = new Promise<void>((resolve, reject) => {
-        req.session.save((err) => {
-          if (err) {
-            console.error('Error saving session:', err);
-            reject(err);
-          } else {
-            console.log('Session saved successfully for login. userId:', user.id);
-            resolve();
-          }
-        });
-      });
-      
-      // Wait for session to be saved
-      await saveSession;
-      
-      res.json({ 
+      await saveSession(req);
+
+      res.json({
         message: "Login successful",
         user: {
           id: user.id,
@@ -136,35 +140,33 @@ export function registerRoutes(app: Express) {
       next(error);
     }
   });
-  
-  app.get("/api/auth/me", authenticateUser, async (req, res) => {
-    const user = (req as any).user;
-    res.json({ user });
+
+  app.get("/api/auth/me", requireUser, async (req, res) => {
+    res.json({ user: (req as AuthedRequest).user });
   });
-  
+
   app.post("/api/auth/logout", (req, res) => {
     req.session.destroy((err) => {
       if (err) {
         console.error('Error destroying session:', err);
         return res.status(500).json({ error: "Logout failed" });
       }
-      
+
       res.json({ message: "Logged out successfully" });
     });
   });
-  
-  // Syllogism routes
+
+  // Evaluating is open to everyone and never persists anything. Saving is an explicit
+  // request (`save: true`) from a signed-in user and requires a conclusion.
   app.post("/api/evaluate", async (req, res, next) => {
     try {
       const argument = argumentSchema.parse(req.body);
       const proof = evaluateSyllogism(argument);
 
-      // Evaluating never persists anything. Saving is an explicit request
-      // (`save: true`) from a signed-in user and requires a conclusion.
       if (req.body?.save === true) {
         const userId = req.session?.userId;
-        if (!userId) {
-          return res.status(401).json({ error: "You must be logged in to save arguments" });
+        if (!userId || !(await storage.getUserById(userId))) {
+          return res.status(401).json({ error: "Sign in to save arguments" });
         }
         if (!argument.conclusion) {
           return res.status(400).json({ error: "A conclusion is required to save an argument" });
@@ -182,103 +184,74 @@ export function registerRoutes(app: Express) {
     }
   });
 
-  // Public arguments (for exploration)
-  app.get("/api/arguments", async (_req, res, next) => {
+  // Saved arguments are private: every route below requires a session and only ever
+  // returns, changes or deletes the caller's own arguments.
+  const listOwnArguments = async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const syllogisms = await storage.listArguments();
-      res.json(syllogisms);
+      res.json(await storage.listArguments((req as AuthedRequest).user.id));
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  app.get("/api/arguments", requireUser, listOwnArguments);
+  app.get("/api/user/arguments", requireUser, listOwnArguments);
+
+  app.get("/api/arguments/:id", requireUser, async (req, res, next) => {
+    try {
+      const id = parseId(req.params.id);
+      if (id === null) {
+        return res.status(400).json({ error: "Invalid ID format" });
+      }
+
+      const argument = await findOwnedArgument(id, (req as AuthedRequest).user.id);
+      if (!argument) return notFound(res);
+
+      res.json(argument);
     } catch (error) {
       next(error);
     }
   });
 
-  // Get specific argument
-  app.get("/api/arguments/:id", async (req, res, next) => {
+  app.put("/api/arguments/:id", requireUser, async (req, res, next) => {
     try {
-      const id = parseInt(req.params.id);
-      if (isNaN(id)) {
+      const id = parseId(req.params.id);
+      if (id === null) {
         return res.status(400).json({ error: "Invalid ID format" });
       }
-      
-      const syllogism = await storage.getArgument(id);
-      if (!syllogism) {
-        return res.status(404).json({ error: "Argument not found" });
-      }
-      
-      res.json(syllogism);
-    } catch (error) {
-      next(error);
-    }
-  });
-  
-  // User's arguments
-  app.get("/api/user/arguments", authenticateUser, async (req, res, next) => {
-    try {
-      const userId = (req as any).user.id;
-      const userArguments = await storage.listArguments(userId);
-      res.json(userArguments);
-    } catch (error) {
-      next(error);
-    }
-  });
-  
-  // Update argument
-  app.put("/api/arguments/:id", authenticateUser, async (req, res, next) => {
-    try {
-      const id = parseInt(req.params.id);
-      if (isNaN(id)) {
-        return res.status(400).json({ error: "Invalid ID format" });
-      }
-      
-      // Get existing argument
-      const existingArgument = await storage.getArgument(id);
-      if (!existingArgument) {
-        return res.status(404).json({ error: "Argument not found" });
-      }
-      
-      // Check ownership
-      const userId = (req as any).user.id;
-      if (existingArgument.userId && existingArgument.userId !== userId) {
-        return res.status(403).json({ error: "Not authorized to update this argument" });
-      }
-      
-      // Update with new data
+
+      const userId = (req as AuthedRequest).user.id;
+      if (!(await findOwnedArgument(id, userId))) return notFound(res);
+
       const argument = argumentSchema.parse(req.body);
+      if (!argument.conclusion) {
+        return res.status(400).json({ error: "A conclusion is required to save an argument" });
+      }
       const proof = evaluateSyllogism(argument);
-      
-      const updatedArgument = await storage.updateArgument(id, argument, proof);
+
+      const updatedArgument = await storage.updateArgument(id, userId, argument, proof);
+      if (!updatedArgument) return notFound(res);
+
       res.json(updatedArgument);
     } catch (error) {
       next(error);
     }
   });
-  
-  // Delete argument
-  app.delete("/api/arguments/:id", authenticateUser, async (req, res, next) => {
+
+  app.delete("/api/arguments/:id", requireUser, async (req, res, next) => {
     try {
-      const id = parseInt(req.params.id);
-      if (isNaN(id)) {
+      const id = parseId(req.params.id);
+      if (id === null) {
         return res.status(400).json({ error: "Invalid ID format" });
       }
-      
-      // Get existing argument
-      const existingArgument = await storage.getArgument(id);
-      if (!existingArgument) {
-        return res.status(404).json({ error: "Argument not found" });
-      }
-      
-      // Check ownership
-      const userId = (req as any).user.id;
-      if (existingArgument.userId && existingArgument.userId !== userId) {
-        return res.status(403).json({ error: "Not authorized to delete this argument" });
-      }
-      
-      const success = await storage.deleteArgument(id);
-      if (success) {
-        res.json({ message: "Argument deleted successfully" });
-      } else {
-        res.status(500).json({ error: "Failed to delete argument" });
-      }
+
+      const userId = (req as AuthedRequest).user.id;
+      if (!(await findOwnedArgument(id, userId))) return notFound(res);
+
+      const deleted = await storage.deleteArgument(id, userId);
+      if (!deleted) return notFound(res);
+
+      res.json({ message: "Argument deleted successfully" });
     } catch (error) {
       next(error);
     }
