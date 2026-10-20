@@ -131,20 +131,20 @@ const getEquivalents = (premise: Premise): Array<{
             result: normalizePremise({ ...norm, form: "I", predicate: `non-${norm.predicate}` })
           }]
         },
-        // Contrapositive: Some non-q are p
+        // Contrapositive: Some non-q are not non-p
         {
-          premise: normalizePremise({ ...norm, subject: `non-${norm.predicate}`, predicate: norm.subject, form: "O" }),
+          premise: normalizePremise({ ...norm, subject: `non-${norm.predicate}`, predicate: `non-${norm.subject}`, form: "O" }),
           transforms: [{
             rule: "Contraposition",
-            result: normalizePremise({ ...norm, subject: `non-${norm.predicate}`, predicate: norm.subject, form: "O" })
+            result: normalizePremise({ ...norm, subject: `non-${norm.predicate}`, predicate: `non-${norm.subject}`, form: "O" })
           }]
         },
-        // Obverse of contrapositive: Some non-q are non-p
+        // Obverse of contrapositive: Some non-q are p
         {
-          premise: normalizePremise({ ...norm, subject: `non-${norm.predicate}`, predicate: `non-${norm.subject}`, form: "I" }),
+          premise: normalizePremise({ ...norm, subject: `non-${norm.predicate}`, predicate: norm.subject, form: "I" }),
           transforms: [
-            { rule: "Contraposition", result: normalizePremise({ ...norm, subject: `non-${norm.predicate}`, predicate: norm.subject, form: "O" }) },
-            { rule: "Obversion", result: normalizePremise({ ...norm, subject: `non-${norm.predicate}`, predicate: `non-${norm.subject}`, form: "I" }) },
+            { rule: "Contraposition", result: normalizePremise({ ...norm, subject: `non-${norm.predicate}`, predicate: `non-${norm.subject}`, form: "O" }) },
+            { rule: "Obversion", result: normalizePremise({ ...norm, subject: `non-${norm.predicate}`, predicate: norm.subject, form: "I" }) },
           ]
         }
       ];
@@ -242,18 +242,18 @@ export const evaluateSyllogism = (argument: Argument): Proof => {
     const p1 = steps[p1Index].premise;
     const p2 = steps[p2Index].premise;
 
-    // Try Barbara: All M are P, All S are M -> All S are P
+    // Try Barbara: All S are M, All M are P -> All S are P
     const equiv1 = getEquivalents(p1);
     const equiv2 = getEquivalents(p2);
 
     for (const e1 of equiv1) {
       for (const e2 of equiv2) {
-        if (e1.premise.form === "A" && e2.premise.form === "A" && 
+        if (e1.premise.form === "A" && e2.premise.form === "A" &&
             e1.premise.predicate === e2.premise.subject) {
           const conclusion = normalizePremise({
             form: "A",
-            subject: e2.premise.subject,
-            predicate: e1.premise.predicate,
+            subject: e1.premise.subject,
+            predicate: e2.premise.predicate,
           });
 
           if (!isPremiseSeen(conclusion, seenPremises)) {
