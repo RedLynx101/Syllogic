@@ -185,11 +185,11 @@ export const queryClient = new QueryClient({
       staleTime: 5 * 60 * 1000, // 5 minutes
       retry: (failureCount, error) => {
         const apiError = error as ApiError;
-        // Don't retry auth errors or bad requests
-        if (apiError.status === 401 || apiError.status === 400) {
+        // Client errors (bad request, signed out, forbidden, not found) will not change on retry
+        if (apiError.status !== undefined && apiError.status >= 400 && apiError.status < 500) {
           return false;
         }
-        // Only retry network errors a few times
+        // Retry network and server errors a couple of times
         return failureCount < 2;
       },
     },

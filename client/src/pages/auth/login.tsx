@@ -4,8 +4,9 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Link, useLocation } from "wouter";
 import { toast } from "sonner";
-import { Loader2 } from "lucide-react";
+import { AlertCircle, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
   Form,
   FormControl,
@@ -15,65 +16,71 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { api } from "@/lib/queryClient";
+import { Card, CardContent, CardDescription, CardFooter, CardHeader } from "@/components/ui/card";
+import { api, type ApiError } from "@/lib/queryClient";
+import { useDocumentTitle } from "@/hooks/use-document-title";
 
-// Login form schema with validation
 const loginSchema = z.object({
-  email: z.string().email("Please enter a valid email address"),
-  password: z.string().min(1, "Password is required"),
+  email: z.string().email("Enter a valid email address"),
+  password: z.string().min(1, "Enter your password"),
 });
 
 type LoginFormValues = z.infer<typeof loginSchema>;
 
 export default function Login() {
+  useDocumentTitle("Log in");
   const [loading, setLoading] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
   const [, setLocation] = useLocation();
 
-  // Initialize form with react-hook-form and zod validation
   const form = useForm<LoginFormValues>({
     resolver: zodResolver(loginSchema),
-    defaultValues: {
-      email: "",
-      password: "",
-    },
+    defaultValues: { email: "", password: "" },
     mode: "onSubmit",
   });
 
-  // Handle form submission
   const onSubmit = async (data: LoginFormValues) => {
     setLoading(true);
-    
+    setSubmitError(null);
+
     try {
       await api.auth.login(data.email, data.password);
-      toast.success("Logged in successfully");
+      toast.success("Logged in");
       setLocation("/dashboard");
     } catch (error) {
-      let errorMessage = "Login failed";
-      
-      if (error instanceof Error) {
-        errorMessage = error.message;
-      }
-      
-      toast.error(errorMessage);
+      const status = (error as ApiError)?.status;
+      setSubmitError(
+        status === 401
+          ? "That email and password do not match an account."
+          : status === 0
+            ? "The server could not be reached. Check your connection and try again."
+            : error instanceof Error && error.message
+              ? error.message
+              : "Login failed. Please try again.",
+      );
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="flex justify-center items-center my-8">
+    <div className="my-8 flex items-center justify-center">
       <Card className="w-full max-w-md">
         <CardHeader className="space-y-1">
-          <CardTitle className="text-2xl font-bold">Login</CardTitle>
-          <CardDescription>
-            Enter your email and password to access your account
-          </CardDescription>
+          <h1 className="text-2xl font-bold tracking-tight">Log in</h1>
+          <CardDescription>Log in to save arguments and see the ones you have saved.</CardDescription>
         </CardHeader>
-        
+
         <CardContent>
           <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4" noValidate>
+              {submitError && (
+                <Alert variant="destructive" className="border-red-300 bg-red-50 text-red-900 [&>svg]:text-red-700">
+                  <AlertCircle className="h-4 w-4" aria-hidden="true" />
+                  <AlertDescription className="text-red-950">{submitError}</AlertDescription>
+                </Alert>
+              )}
+
               <FormField
                 control={form.control}
                 name="email"
@@ -83,7 +90,8 @@ export default function Login() {
                     <FormControl>
                       <Input
                         type="email"
-                        placeholder="your.email@example.com"
+                        autoComplete="email"
+                        placeholder="you@example.com"
                         {...field}
                         disabled={loading}
                       />
@@ -92,7 +100,7 @@ export default function Login() {
                   </FormItem>
                 )}
               />
-              
+
               <FormField
                 control={form.control}
                 name="password"
@@ -100,39 +108,28 @@ export default function Login() {
                   <FormItem>
                     <FormLabel>Password</FormLabel>
                     <FormControl>
-                      <Input
-                        type="password"
-                        placeholder="••••••••"
-                        {...field}
-                        disabled={loading}
-                      />
+                      <Input type="password" autoComplete="current-password" {...field} disabled={loading} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
-              
+
               <Button type="submit" className="w-full" disabled={loading}>
-                {loading ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Logging in...
-                  </>
-                ) : (
-                  "Login"
-                )}
+                {loading && <Loader2 className="animate-spin" aria-hidden="true" />}
+                {loading ? "Logging in…" : "Log in"}
               </Button>
             </form>
           </Form>
         </CardContent>
-        
-        <CardFooter className="flex flex-col gap-2">
-          <div className="text-sm text-muted-foreground text-center">
-            Don't have an account?{" "}
-            <Link href="/register" className="text-primary underline underline-offset-4 hover:opacity-80">
-              Sign up
+
+        <CardFooter className="justify-center">
+          <p className="text-center text-sm text-muted-foreground">
+            New to Syllogic?{" "}
+            <Link href="/register" className="font-medium text-foreground underline underline-offset-4">
+              Create an account
             </Link>
-          </div>
+          </p>
         </CardFooter>
       </Card>
     </div>

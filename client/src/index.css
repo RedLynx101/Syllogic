@@ -2,6 +2,20 @@
 @tailwind components;
 @tailwind utilities;
 
+/*
+ * Contrast adjustments on top of the generated theme (theme.json). The theme's style tag is
+ * inserted first in <head>, so these later declarations take precedence.
+ *  - muted text: darker so secondary text passes WCAG AA (4.5:1) on white and muted panels
+ *  - destructive: red-600, so white text on it and red text on white both pass AA
+ *  - input borders: dark enough (about 3:1) to show where each field is
+ */
+:root {
+  --muted-foreground: 25 5.3% 38%;
+  --destructive: 0 72.2% 50.6%;
+  --destructive-foreground: 0 0% 100%;
+  --input: 24 5% 56%;
+}
+
 @layer base {
   * {
     @apply border-border;
@@ -9,5 +23,23 @@
 
   body {
     @apply font-sans antialiased bg-background text-foreground;
+  }
+
+  /* A visible focus indicator for any link that does not style its own. */
+  a:focus-visible {
+    outline: 2px solid hsl(var(--ring));
+    outline-offset: 2px;
+    border-radius: 2px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }

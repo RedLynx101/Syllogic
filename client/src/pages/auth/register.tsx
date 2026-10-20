@@ -4,92 +4,102 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Link, useLocation } from "wouter";
 import { toast } from "sonner";
-import { Loader2 } from "lucide-react";
+import { AlertCircle, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
   Form,
   FormControl,
+  FormDescription,
   FormField,
   FormItem,
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { api } from "@/lib/queryClient";
+import { Card, CardContent, CardDescription, CardFooter, CardHeader } from "@/components/ui/card";
+import { api, type ApiError } from "@/lib/queryClient";
+import { useDocumentTitle } from "@/hooks/use-document-title";
 
-// Registration form schema with validation
-const registerSchema = z.object({
-  username: z
-    .string()
-    .min(3, "Username must be at least 3 characters")
-    .max(30, "Username must be at most 30 characters")
-    .regex(/^[a-zA-Z0-9_]+$/, "Username can only contain letters, numbers, and underscores"),
-  email: z.string().email("Please enter a valid email address"),
-  password: z
-    .string()
-    .min(8, "Password must be at least 8 characters")
-    .regex(/[a-z]/, "Password must contain at least one lowercase letter")
-    .regex(/[A-Z]/, "Password must contain at least one uppercase letter")
-    .regex(/[0-9]/, "Password must contain at least one number"),
-  confirmPassword: z.string(),
-}).refine((data) => data.password === data.confirmPassword, {
-  message: "Passwords do not match",
-  path: ["confirmPassword"],
-});
+const registerSchema = z
+  .object({
+    username: z
+      .string()
+      .min(3, "Use at least 3 characters")
+      .max(30, "Use at most 30 characters")
+      .regex(/^[a-zA-Z0-9_]+$/, "Use letters, numbers and underscores only"),
+    email: z.string().email("Enter a valid email address"),
+    password: z
+      .string()
+      .min(8, "Use at least 8 characters")
+      .regex(/[a-z]/, "Include a lowercase letter")
+      .regex(/[A-Z]/, "Include an uppercase letter")
+      .regex(/[0-9]/, "Include a number"),
+    confirmPassword: z.string(),
+  })
+  .refine((data) => data.password === data.confirmPassword, {
+    message: "The passwords do not match",
+    path: ["confirmPassword"],
+  });
 
 type RegisterFormValues = z.infer<typeof registerSchema>;
 
 export default function Register() {
+  useDocumentTitle("Create an account");
   const [loading, setLoading] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
   const [, setLocation] = useLocation();
 
-  // Initialize form with react-hook-form and zod validation
   const form = useForm<RegisterFormValues>({
     resolver: zodResolver(registerSchema),
-    defaultValues: {
-      username: "",
-      email: "",
-      password: "",
-      confirmPassword: "",
-    },
+    defaultValues: { username: "", email: "", password: "", confirmPassword: "" },
     mode: "onBlur",
   });
 
-  // Handle form submission
   const onSubmit = async (data: RegisterFormValues) => {
     setLoading(true);
-    
+    setSubmitError(null);
+
     try {
       await api.auth.register(data.username, data.email, data.password);
-      toast.success("Registration successful");
+      toast.success("Account created");
       setLocation("/dashboard");
     } catch (error) {
-      let errorMessage = "Registration failed";
-      
-      if (error instanceof Error) {
-        errorMessage = error.message;
+      const apiError = error as ApiError;
+      if (apiError?.status === 409) {
+        form.setError("email", { message: "An account with this email already exists. Log in instead?" });
+      } else {
+        setSubmitError(
+          apiError?.status === 0
+            ? "The server could not be reached. Check your connection and try again."
+            : error instanceof Error && error.message
+              ? error.message
+              : "Registration failed. Please try again.",
+        );
       }
-      
-      toast.error(errorMessage);
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="flex justify-center items-center my-8">
+    <div className="my-8 flex items-center justify-center">
       <Card className="w-full max-w-md">
         <CardHeader className="space-y-1">
-          <CardTitle className="text-2xl font-bold">Create an account</CardTitle>
-          <CardDescription>
-            Enter your details below to create your account
-          </CardDescription>
+          <h1 className="text-2xl font-bold tracking-tight">Create an account</h1>
+          <CardDescription>An account lets you save arguments and come back to them.</CardDescription>
         </CardHeader>
-        
+
         <CardContent>
           <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4" noValidate>
+              {submitError && (
+                <Alert variant="destructive" className="border-red-300 bg-red-50 text-red-900 [&>svg]:text-red-700">
+                  <AlertCircle className="h-4 w-4" aria-hidden="true" />
+                  <AlertDescription className="text-red-950">{submitError}</AlertDescription>
+                </Alert>
+              )}
+
               <FormField
                 control={form.control}
                 name="username"
@@ -97,17 +107,13 @@ export default function Register() {
                   <FormItem>
                     <FormLabel>Username</FormLabel>
                     <FormControl>
-                      <Input
-                        placeholder="johndoe"
-                        {...field}
-                        disabled={loading}
-                      />
+                      <Input autoComplete="username" placeholder="e.g. ada_l" {...field} disabled={loading} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
-              
+
               <FormField
                 control={form.control}
                 name="email"
@@ -117,7 +123,8 @@ export default function Register() {
                     <FormControl>
                       <Input
                         type="email"
-                        placeholder="your.email@example.com"
+                        autoComplete="email"
+                        placeholder="you@example.com"
                         {...field}
                         disabled={loading}
                       />
@@ -126,7 +133,7 @@ export default function Register() {
                   </FormItem>
                 )}
               />
-              
+
               <FormField
                 control={form.control}
                 name="password"
@@ -134,58 +141,45 @@ export default function Register() {
                   <FormItem>
                     <FormLabel>Password</FormLabel>
                     <FormControl>
-                      <Input
-                        type="password"
-                        placeholder="••••••••"
-                        {...field}
-                        disabled={loading}
-                      />
+                      <Input type="password" autoComplete="new-password" {...field} disabled={loading} />
                     </FormControl>
+                    <FormDescription>
+                      At least 8 characters, with an uppercase letter, a lowercase letter and a number.
+                    </FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}
               />
-              
+
               <FormField
                 control={form.control}
                 name="confirmPassword"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Confirm Password</FormLabel>
+                    <FormLabel>Confirm password</FormLabel>
                     <FormControl>
-                      <Input
-                        type="password"
-                        placeholder="••••••••"
-                        {...field}
-                        disabled={loading}
-                      />
+                      <Input type="password" autoComplete="new-password" {...field} disabled={loading} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
-              
+
               <Button type="submit" className="w-full" disabled={loading}>
-                {loading ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Creating account...
-                  </>
-                ) : (
-                  "Create account"
-                )}
+                {loading && <Loader2 className="animate-spin" aria-hidden="true" />}
+                {loading ? "Creating account…" : "Create account"}
               </Button>
             </form>
           </Form>
         </CardContent>
-        
-        <CardFooter className="flex flex-col gap-2">
-          <div className="text-sm text-muted-foreground text-center">
+
+        <CardFooter className="justify-center">
+          <p className="text-center text-sm text-muted-foreground">
             Already have an account?{" "}
-            <Link href="/login" className="text-primary underline underline-offset-4 hover:opacity-80">
+            <Link href="/login" className="font-medium text-foreground underline underline-offset-4">
               Log in
             </Link>
-          </div>
+          </p>
         </CardFooter>
       </Card>
     </div>

@@ -1,4 +1,4 @@
-import { Switch, Route, useLocation } from "wouter";
+import { Switch, Route, useLocation, useSearch } from "wouter";
 import { queryClient, api, authEvents } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -14,9 +14,15 @@ import Login from "@/pages/auth/login";
 import Dashboard from "@/pages/dashboard";
 import Layout from "@/components/layout";
 
+interface AuthUser {
+  id: number;
+  username: string;
+  email: string;
+}
+
 interface AuthContextType {
   isAuthenticated: boolean;
-  user: any | null;
+  user: AuthUser | null;
   loading: boolean;
 }
 
@@ -30,16 +36,17 @@ export const useAuth = () => useContext(AuthContext);
 
 function LoadingScreen() {
   return (
-    <div className="flex items-center justify-center h-screen">
-      <Loader2 className="animate-spin" />
+    <div className="flex items-center justify-center h-[60vh]" role="status">
+      <Loader2 className="animate-spin" aria-hidden="true" />
+      <span className="sr-only">Loading…</span>
     </div>
   );
 }
 
-function ErrorFallback({ error, resetErrorBoundary }: { error: Error; resetErrorBoundary: () => void }) {
+function ErrorFallback({ resetErrorBoundary }: { error: Error; resetErrorBoundary: () => void }) {
   return (
-    <div className="container py-8 text-center">
-      <h2 className="text-2xl font-bold mb-4">Something went wrong</h2>
+    <div className="container py-8 text-center" role="alert">
+      <h1 className="text-2xl font-bold mb-4">Something went wrong</h1>
       <Button onClick={resetErrorBoundary} variant="outline">
         Try again
       </Button>
@@ -49,33 +56,60 @@ function ErrorFallback({ error, resetErrorBoundary }: { error: Error; resetError
 
 function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
-  const [user, setUser] = useState<any | null>(null);
+  const [user, setUser] = useState<AuthUser | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
 
   useEffect(() => {
-    const checkAuth = async () => {
+    let active = true;
+    // Tracks the last known state so caches are only cleared on a real sign-out,
+    // not on every 401 an anonymous visitor receives.
+    let signedIn = false;
+
+    const loadUser = async () => {
       try {
-        const userData = await api.get<{ user: any }>("/api/auth/me");
+        const userData = await api.get<{ user: AuthUser }>("/api/auth/me");
+        if (!active) return;
+        signedIn = true;
         setUser(userData.user);
         setIsAuthenticated(true);
-      } catch (error) {
+      } catch {
+        // A 401 here also reaches the subscriber below, which resets the state.
+        if (!active) return;
         setUser(null);
         setIsAuthenticated(false);
       } finally {
-        setLoading(false);
+        if (active) setLoading(false);
       }
     };
 
-    checkAuth();
+    loadUser();
 
     const unsubscribe = authEvents.subscribe((authenticated) => {
-      setIsAuthenticated(authenticated);
-      if (!authenticated) {
+      if (authenticated) {
+        setIsAuthenticated(true);
+        if (!signedIn) {
+          signedIn = true;
+          loadUser();
+          queryClient.invalidateQueries();
+        }
+      } else {
+        setIsAuthenticated(false);
         setUser(null);
+        if (signedIn) {
+          signedIn = false;
+          // Drop cached saved arguments so the next account on this browser never sees them
+          queryClient.removeQueries({ queryKey: ["/api/user/arguments"] });
+          queryClient.removeQueries({
+            predicate: (query) => String(query.queryKey[0] ?? "").startsWith("/api/arguments"),
+          });
+        }
       }
     });
 
-    return () => unsubscribe();
+    return () => {
+      active = false;
+      unsubscribe();
+    };
   }, []);
 
   return (
@@ -119,12 +153,18 @@ function ProtectedRoute({ component: Component }: { component: React.ComponentTy
   return isAuthenticated ? <Component /> : null;
 }
 
+/** Remounts the editor whenever the argument id changes, so no state leaks between arguments. */
+function HomeRoute() {
+  const id = new URLSearchParams(useSearch()).get("id");
+  return <Home key={id ?? "new"} />;
+}
+
 function Router() {
   return (
     <AuthProvider>
       <Layout>
         <Switch>
-          <Route path="/" component={Home} />
+          <Route path="/" component={HomeRoute} />
           <Route path="/login">
             <AuthRoute component={Login} />
           </Route>
@@ -147,7 +187,7 @@ function App() {
       <ErrorBoundary FallbackComponent={ErrorFallback}>
         <Router />
         <Toaster />
-        <SonnerToaster position="top-right" />
+        <SonnerToaster position="bottom-right" closeButton />
       </ErrorBoundary>
     </QueryClientProvider>
   );
