@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { PremiseInput } from "@/components/ui/premise-input";
 import { ProofDisplay } from "@/components/ui/proof-display";
 import { Premise, PremiseForm, type Proof, type SyllogismRecord } from "@shared/schema";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/queryClient";
 import { Loader2, Plus, Save } from "lucide-react";
 import { useAuth } from "@/App";
@@ -36,6 +36,7 @@ const defaultPremise = (): Premise => ({
 
 export default function Home() {
   const { isAuthenticated } = useAuth();
+  const queryClient = useQueryClient();
   const [, setLocation] = useLocation();
   const search = useSearch();
   const params = new URLSearchParams(search);
@@ -88,7 +89,7 @@ export default function Home() {
       
       const validConclusion = conclusion.subject.trim() !== "" && conclusion.predicate.trim() !== "";
       
-      // Don't automatically save - just evaluate
+      // Evaluate only; the server persists nothing unless `save: true` is sent
       return await api.post<EvaluateResponse>("/api/evaluate", {
         premises: validPremises,
         conclusion: validConclusion ? conclusion : undefined,
@@ -128,11 +129,12 @@ export default function Home() {
         const updated = await api.put<SyllogismRecord>(`/api/arguments/${argumentId}`, argumentData);
         return { savedArgument: updated };
       } else {
-        return await api.post<EvaluateResponse>("/api/evaluate", argumentData);
+        return await api.post<EvaluateResponse>("/api/evaluate", { ...argumentData, save: true });
       }
     },
     onSuccess: (data) => {
       toast.success("Argument saved successfully");
+      queryClient.invalidateQueries({ queryKey: ["/api/user/arguments"] });
       if (data.savedArgument && !argumentId) {
         setLocation(`/?id=${data.savedArgument.id}`);
       }

@@ -158,18 +158,24 @@ export function registerRoutes(app: Express) {
     try {
       const argument = argumentSchema.parse(req.body);
       const proof = evaluateSyllogism(argument);
-      
-      // Only save if there's a conclusion
-      if (argument.conclusion) {
-        // Get user ID from session if available
+
+      // Evaluating never persists anything. Saving is an explicit request
+      // (`save: true`) from a signed-in user and requires a conclusion.
+      if (req.body?.save === true) {
         const userId = req.session?.userId;
+        if (!userId) {
+          return res.status(401).json({ error: "You must be logged in to save arguments" });
+        }
+        if (!argument.conclusion) {
+          return res.status(400).json({ error: "A conclusion is required to save an argument" });
+        }
         const savedArgument = await storage.saveArgument(argument, proof, userId);
         return res.json({
           proof,
           savedArgument
         });
       }
-      
+
       res.json({ proof });
     } catch (error) {
       next(error);
