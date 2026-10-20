@@ -372,7 +372,7 @@ export default function Home() {
 
       <div className="flex flex-col sm:flex-row gap-3">
         <Button
-          className="flex-1 font-semibold shadow-md"
+          className="sm:flex-1 font-semibold shadow-md"
           size="lg"
           onClick={handleEvaluate}
           disabled={evaluateMutation.isPending || isReadOnly}
@@ -389,7 +389,7 @@ export default function Home() {
 
         {isAuthenticated && (
           <Button
-            className="flex-1 font-semibold shadow-md"
+            className="sm:flex-1 font-semibold shadow-md"
             size="lg"
             variant="outline"
             onClick={handleSave}
