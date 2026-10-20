@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { PremiseInput } from "@/components/ui/premise-input";
 import { ProofDisplay } from "@/components/ui/proof-display";
-import { Premise, PremiseForm, type Proof } from "@shared/schema";
+import { Premise, PremiseForm, type Proof, type SyllogismRecord } from "@shared/schema";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/queryClient";
 import { Loader2, Plus, Save } from "lucide-react";
@@ -23,6 +23,11 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 
+type EvaluateResponse = {
+  proof: Proof;
+  savedArgument?: SyllogismRecord;
+};
+
 const defaultPremise = (): Premise => ({
   form: PremiseForm.A,
   subject: "",
@@ -32,10 +37,12 @@ const defaultPremise = (): Premise => ({
 export default function Home() {
   const { isAuthenticated } = useAuth();
   const [, setLocation] = useLocation();
-  const [search] = useSearch();
+  const search = useSearch();
   const params = new URLSearchParams(search);
-  const argumentId = params.get("id") ? parseInt(params.get("id")) : null;
+  const idParam = params.get("id");
+  const argumentId = idParam ? parseInt(idParam, 10) : null;
   const isEditMode = params.get("edit") === "true";
+  const isReadOnly = argumentId !== null && !isEditMode;
 
   const [premises, setPremises] = useState<Premise[]>([defaultPremise(), defaultPremise()]);
   const [conclusion, setConclusion] = useState<Premise>(defaultPremise());
@@ -46,13 +53,13 @@ export default function Home() {
   const [pendingArgument, setPendingArgument] = useState<any>(null);
   
   // Fetch existing argument if ID provided
-  const { data: existingArgument, isLoading: loadingArgument } = useQuery({
+  const { data: existingArgument, isLoading: loadingArgument } = useQuery<SyllogismRecord>({
     queryKey: [argumentId ? `/api/arguments/${argumentId}` : null],
     enabled: !!argumentId,
   });
   
   // Fetch user's arguments to check for duplicates
-  const { data: userArguments } = useQuery({
+  const { data: userArguments } = useQuery<SyllogismRecord[]>({
     queryKey: [isAuthenticated ? "/api/user/arguments" : null],
     enabled: isAuthenticated,
   });
@@ -82,7 +89,7 @@ export default function Home() {
       const validConclusion = conclusion.subject.trim() !== "" && conclusion.predicate.trim() !== "";
       
       // Don't automatically save - just evaluate
-      return await api.post("/api/evaluate", {
+      return await api.post<EvaluateResponse>("/api/evaluate", {
         premises: validPremises,
         conclusion: validConclusion ? conclusion : undefined,
       });
@@ -102,7 +109,7 @@ export default function Home() {
 
   // Save/update mutation
   const saveMutation = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (): Promise<{ savedArgument?: SyllogismRecord }> => {
       if (!isAuthenticated) {
         throw new Error("You must be logged in to save arguments");
       }
@@ -118,9 +125,10 @@ export default function Home() {
       };
       
       if (argumentId) {
-        return await api.put(`/api/arguments/${argumentId}`, argumentData);
+        const updated = await api.put<SyllogismRecord>(`/api/arguments/${argumentId}`, argumentData);
+        return { savedArgument: updated };
       } else {
-        return await api.post("/api/evaluate", argumentData);
+        return await api.post<EvaluateResponse>("/api/evaluate", argumentData);
       }
     },
     onSuccess: (data) => {
@@ -309,7 +317,7 @@ export default function Home() {
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="Socrates Mortality Argument"
-              disabled={argumentId && !isEditMode}
+              disabled={isReadOnly}
             />
           </div>
         </CardContent>
@@ -327,7 +335,7 @@ export default function Home() {
               value={premise}
               onChange={(p) => updatePremise(index, p)}
               onRemove={() => removePremise(index)}
-              disabled={argumentId && !isEditMode}
+              disabled={isReadOnly}
             />
           ))}
 
@@ -355,7 +363,7 @@ export default function Home() {
             value={conclusion}
             onChange={setConclusion}
             isConclusion
-            disabled={argumentId && !isEditMode}
+            disabled={isReadOnly}
           />
         </CardContent>
       </Card>
@@ -365,7 +373,7 @@ export default function Home() {
           className="flex-1 font-semibold shadow-md"
           size="lg"
           onClick={handleEvaluate}
-          disabled={evaluateMutation.isPending || (argumentId && !isEditMode)}
+          disabled={evaluateMutation.isPending || isReadOnly}
         >
           {evaluateMutation.isPending ? (
             <>
@@ -383,7 +391,7 @@ export default function Home() {
             size="lg"
             variant="outline"
             onClick={handleSave}
-            disabled={saveMutation.isPending || (argumentId && !isEditMode)}
+            disabled={saveMutation.isPending || isReadOnly}
           >
             {saveMutation.isPending ? (
               <>

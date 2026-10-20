@@ -13,9 +13,10 @@ interface PremiseInputProps {
   onChange: (premise: Premise) => void;
   onRemove?: () => void;
   isConclusion?: boolean;
+  disabled?: boolean;
 }
 
-export function PremiseInput({ value, onChange, onRemove, isConclusion }: PremiseInputProps) {
+export function PremiseInput({ value, onChange, onRemove, isConclusion, disabled }: PremiseInputProps) {
   const handleSubjectNegation = (checked: boolean) => {
     onChange({
       ...value,
@@ -35,6 +36,7 @@ export function PremiseInput({ value, onChange, onRemove, isConclusion }: Premis
       <Select
         value={value.form}
         onValueChange={(form) => onChange({ ...value, form: form as PremiseForm })}
+        disabled={disabled}
       >
         <SelectTrigger className="w-[120px]">
           <SelectValue placeholder="Form" />
@@ -57,6 +59,7 @@ export function PremiseInput({ value, onChange, onRemove, isConclusion }: Premis
                     id={`subject-not-${isConclusion ? 'conclusion' : value.subject}`}
                     checked={value.subject.startsWith('non-')}
                     onCheckedChange={handleSubjectNegation}
+                    disabled={disabled}
                   />
                   <Label htmlFor={`subject-not-${isConclusion ? 'conclusion' : value.subject}`} className="text-sm font-medium">
                     Negative
@@ -67,6 +70,7 @@ export function PremiseInput({ value, onChange, onRemove, isConclusion }: Premis
                   value={value.subject.replace(/^non-/, '')}
                   onChange={(e) => onChange({ ...value, subject: value.subject.startsWith('non-') ? `non-${e.target.value}` : e.target.value })}
                   className="w-[180px] sm:w-[200px]"
+                  disabled={disabled}
                 />
               </div>
             </TooltipTrigger>
@@ -87,6 +91,7 @@ export function PremiseInput({ value, onChange, onRemove, isConclusion }: Premis
                     id={`predicate-not-${isConclusion ? 'conclusion' : value.predicate}`}
                     checked={value.predicate.startsWith('non-')}
                     onCheckedChange={handlePredicateNegation}
+                    disabled={disabled}
                   />
                   <Label htmlFor={`predicate-not-${isConclusion ? 'conclusion' : value.predicate}`} className="text-sm font-medium">
                     Negative
@@ -97,6 +102,7 @@ export function PremiseInput({ value, onChange, onRemove, isConclusion }: Premis
                   value={value.predicate.replace(/^non-/, '')}
                   onChange={(e) => onChange({ ...value, predicate: value.predicate.startsWith('non-') ? `non-${e.target.value}` : e.target.value })}
                   className="w-[180px] sm:w-[200px]"
+                  disabled={disabled}
                 />
               </div>
             </TooltipTrigger>
@@ -107,7 +113,7 @@ export function PremiseInput({ value, onChange, onRemove, isConclusion }: Premis
         </TooltipProvider>
       </div>
 
-      {!isConclusion && onRemove && (
+      {!isConclusion && onRemove && !disabled && (
         <Button variant="ghost" size="icon" onClick={onRemove} className="self-center">
           <X className="h-4 w-4" />
         </Button>

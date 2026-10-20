@@ -35,7 +35,7 @@ import {
 } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
-import { PremiseForm } from "@shared/schema";
+import { PremiseForm, type SyllogismRecord } from "@shared/schema";
 
 export default function Dashboard() {
   const { user } = useAuth();
@@ -44,7 +44,7 @@ export default function Dashboard() {
   const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null);
 
   // Fetch user's arguments
-  const { data: userArguments, isLoading } = useQuery({
+  const { data: userArguments, isLoading } = useQuery<SyllogismRecord[]>({
     queryKey: ["/api/user/arguments"],
     staleTime: 1000 * 60, // 1 minute
   });

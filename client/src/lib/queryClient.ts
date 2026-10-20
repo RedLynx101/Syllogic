@@ -11,7 +11,9 @@ export const authEvents = {
   listeners: new Set<(isAuthenticated: boolean) => void>(),
   subscribe(listener: (isAuthenticated: boolean) => void) {
     this.listeners.add(listener);
-    return () => this.listeners.delete(listener);
+    return () => {
+      this.listeners.delete(listener);
+    };
   },
   notify(isAuthenticated: boolean) {
     this.listeners.forEach(listener => listener(isAuthenticated));
@@ -109,11 +111,12 @@ export async function apiRequest<T = any>(
  * Query function factory for React Query
  */
 type UnauthorizedBehavior = "returnNull" | "throw";
-export const getQueryFn: <T>(options: {
+export function getQueryFn<T>({
+  on401: unauthorizedBehavior,
+}: {
   on401: UnauthorizedBehavior;
-}) => QueryFunction<T> =
-  ({ on401: unauthorizedBehavior }) =>
-  async ({ queryKey }) => {
+}): QueryFunction<T> {
+  return async ({ queryKey }) => {
     try {
       // Extract URL and method from query key
       const endpoint = queryKey[0] as string;
@@ -131,6 +134,7 @@ export const getQueryFn: <T>(options: {
       throw error;
     }
   };
+}
 
 /**
  * Utility functions to simplify common API operations

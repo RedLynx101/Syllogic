@@ -55,7 +55,7 @@ function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const checkAuth = async () => {
       try {
-        const userData = await api.get("/api/auth/me");
+        const userData = await api.get<{ user: any }>("/api/auth/me");
         setUser(userData.user);
         setIsAuthenticated(true);
       } catch (error) {

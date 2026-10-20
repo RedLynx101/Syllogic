@@ -5,6 +5,12 @@ import { argumentSchema, userSchema, loginSchema } from "@shared/schema";
 import { evaluateSyllogism } from "@/lib/syllogism";
 import { ZodError } from "zod";
 
+declare module "express-session" {
+  interface SessionData {
+    userId: number;
+  }
+}
+
 // Auth middleware
 const authenticateUser = async (req: Request, res: Response, next: NextFunction) => {
   const userId = req.session?.userId;
